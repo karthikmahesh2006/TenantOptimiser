@@ -39,11 +39,11 @@ class DockerEnforcer:
 
     def __init__(self, docker_host: str | None = None) -> None:
         self.docker_host = docker_host or config.docker_host
-        try:
+        if self.docker_host:
             self.client = docker.DockerClient(base_url=self.docker_host)
-        except Exception:
-            # Fallback to default environment for local execution
+        else:
             self.client = docker.from_env()
+
 
     def ensure_network(self) -> str:
         """Ensures isolated internal bridge network exists."""

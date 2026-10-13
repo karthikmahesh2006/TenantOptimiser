@@ -129,10 +129,10 @@ async def test_demo_start_and_execution():
             assert data["status"] == "demo_started"
             exp_id = data["experiment_id"]
 
-            # Poll for experiment completion (90 steps at 1ms each should complete in < 2 seconds)
+            # Poll for experiment completion (allowing up to 30s if live Docker is running)
             status = "pending"
-            for _ in range(50):
-                await asyncio.sleep(0.05)
+            for _ in range(150):
+                await asyncio.sleep(0.2)
                 db = SessionLocal()
                 exp = db.query(Experiment).filter(Experiment.id == exp_id).first()
                 if exp:
@@ -142,6 +142,7 @@ async def test_demo_start_and_execution():
                     break
 
             assert status == "done"
+
 
             # Check that runs and metrics were created
             db = SessionLocal()

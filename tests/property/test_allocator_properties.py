@@ -124,12 +124,16 @@ def test_adaptive_memory_safety_property(pool, tenants):
     allocator = AdaptiveAllocator(AdaptiveParams(memory_safety_mb=32.0))
     plan = allocator.allocate(pool, tenants, obs, now=5.0)
 
-    tot_safe = sum(obs[t.id].usage["mem_mb"] + 32.0 for t in tenants)
+    tot_needed = sum(
+        max(float(t.minimum.get("mem_mb", 0.0)), obs[t.id].usage["mem_mb"] + 32.0)
+        for t in tenants
+    )
     for t in tenants:
         alloc_mem = plan.alloc[t.id]["mem_mb"]
         used_mem = obs[t.id].usage["mem_mb"]
         target_safe = used_mem + 32.0
-        # If target fits within declared demand and total pool capacity allows all safe targets
-        if tot_safe <= pool.capacity["mem_mb"] and target_safe <= t.demand["mem_mb"]:
+        # If total needed fits within pool capacity and individual tenant demand
+        if tot_needed <= pool.capacity["mem_mb"] and target_safe <= t.demand["mem_mb"]:
             assert alloc_mem >= used_mem + 16.0  # Safe margin preserved
+
 

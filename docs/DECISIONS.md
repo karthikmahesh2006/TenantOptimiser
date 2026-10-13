@@ -42,3 +42,12 @@
 - **Decision:** Background experiment runs are managed as asynchronous coroutines (`execute_experiment_async`) with non-blocking cooperative pacing (`config.epoch_interval_s`). Route handlers triggering experiments are declared as `async def` to ensure event loop attachment. Telemetry is streamed to HTMX/vanilla JavaScript clients via Server-Sent Events (`/api/v1/events`), while mutual exclusion is enforced by a single-experiment database lock.
 - **Consequences:** Responsive web UI, instant live chart rendering, and complete prevention of concurrent experiment resource contamination.
 
+## ADR-008: Packaging Asset Discovery & Optimizer Guarantee Admission
+- **Context:** Deployments packaged into standard wheel distributions (`pip install .`) excluded non-code assets by default, triggering missing directory errors on fresh remote environments. Additionally, edge-case tenant configurations generated randomized minimum guarantees exceeding physical pool capacity.
+- **Decision:**
+  1. Configured `tool.setuptools.package-data` and `MANIFEST.in` to recursively package HTML templates and static assets into the wheel distribution, with automatic fallback path discovery in `main.py` and `routes_pages.py`.
+  2. In `AdaptiveAllocator.solve_convex`, lower bound constraints (`s_min`) are filtered strictly by `admitted_ids` from `check_guarantee_feasibility`. This guarantees that lower bounds never exceed pool capacity, ensuring the SLSQP optimization problem remains strictly feasible. A final capacity clamp in `stability_filter` guarantees the physical capacity invariant is never violated regardless of hysteresis or dwell states.
+- **Consequences:** Deterministic zero-configuration deployment across any fresh Linux host, and mathematical stability across all extreme or infeasible guarantee configurations.
+
+
+

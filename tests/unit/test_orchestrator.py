@@ -64,17 +64,17 @@ def test_scenario_validation_caps():
 async def test_alloc_mode_live_failure_when_docker_absent(monkeypatch):
     """Verify that ALLOC_MODE=live fails cleanly when Docker daemon is not available."""
     import json
+    import uuid
 
     from alloc_platform.config import config
     from alloc_platform.db.models import Experiment
     from alloc_platform.orchestrator.runner import execute_experiment_async
 
+    exp_id = f"test_live_fail_{uuid.uuid4().hex[:8]}"
+
     db = SessionLocal()
-    exp_id = "test_live_fail"
-    existing = db.query(Experiment).filter(Experiment.id == exp_id).first()
-    if existing:
-        db.delete(existing)
-        db.commit()
+
+
 
     exp = Experiment(
         id=exp_id,

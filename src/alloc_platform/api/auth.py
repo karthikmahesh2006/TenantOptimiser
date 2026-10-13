@@ -79,7 +79,7 @@ def bootstrap_admin_user() -> Optional[str]:
         if admin:
             return None
 
-        password = secrets.token_urlsafe(16)
+        password = os.getenv("ALLOC_ADMIN_PASSWORD") or secrets.token_urlsafe(16)
         pw_hash = hash_password(password)
         new_admin = User(username="admin", password_hash=pw_hash, role="admin")
         db.add(new_admin)

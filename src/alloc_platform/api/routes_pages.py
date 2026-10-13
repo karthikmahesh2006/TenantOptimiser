@@ -20,6 +20,12 @@ templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
 
+def _get_modes() -> tuple[bool, bool]:
+    fallback_mode = os.path.exists("data/fallback_active.flag")
+    simulated_mode = (config.alloc_mode == "sim") or (not fallback_mode)
+    return fallback_mode, simulated_mode
+
+
 @pages_router.get("/", response_class=HTMLResponse)
 def page_overview(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
@@ -38,7 +44,7 @@ def page_overview(
             m = get_run_metrics(db, latest_run.id)
             latest_jain = m.get("jain_fairness_primary")
 
-    fallback_mode = os.path.exists("data/fallback_active.flag")
+    fallback_mode, simulated_mode = _get_modes()
 
     return templates.TemplateResponse(
         request=request,
@@ -53,6 +59,7 @@ def page_overview(
             "experiments": experiments,
             "latest_jain": latest_jain,
             "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 
@@ -62,6 +69,7 @@ def page_tenants(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     tenants = get_all_tenants(db)
+    fallback_mode, simulated_mode = _get_modes()
     return templates.TemplateResponse(
         request=request,
         name="tenants.html",
@@ -69,33 +77,38 @@ def page_tenants(
             "active_page": "tenants",
             "user": user,
             "tenants": tenants,
-            "fallback_mode": os.path.exists("data/fallback_active.flag"),
+            "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 
 
 @pages_router.get("/experiment-config", response_class=HTMLResponse)
 def page_config(request: Request, user: User = Depends(get_current_user)):
+    fallback_mode, simulated_mode = _get_modes()
     return templates.TemplateResponse(
         request=request,
         name="experiment_config.html",
         context={
             "active_page": "config",
             "user": user,
-            "fallback_mode": os.path.exists("data/fallback_active.flag"),
+            "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 
 
 @pages_router.get("/live-console", response_class=HTMLResponse)
 def page_console(request: Request, user: User = Depends(get_current_user)):
+    fallback_mode, simulated_mode = _get_modes()
     return templates.TemplateResponse(
         request=request,
         name="live_console.html",
         context={
             "active_page": "console",
             "user": user,
-            "fallback_mode": os.path.exists("data/fallback_active.flag"),
+            "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 
@@ -104,6 +117,7 @@ def page_console(request: Request, user: User = Depends(get_current_user)):
 def page_compare(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
+    fallback_mode, simulated_mode = _get_modes()
     return templates.TemplateResponse(
         request=request,
         name="compare.html",
@@ -111,7 +125,8 @@ def page_compare(
             "active_page": "compare",
             "user": user,
             "metrics_summary": {},
-            "fallback_mode": os.path.exists("data/fallback_active.flag"),
+            "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 
@@ -121,6 +136,7 @@ def page_history(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     experiments = get_all_experiments(db, limit=20)
+    fallback_mode, simulated_mode = _get_modes()
     return templates.TemplateResponse(
         request=request,
         name="history.html",
@@ -128,20 +144,23 @@ def page_history(
             "active_page": "history",
             "user": user,
             "experiments": experiments,
-            "fallback_mode": os.path.exists("data/fallback_active.flag"),
+            "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 
 
 @pages_router.get("/architecture", response_class=HTMLResponse)
 def page_architecture(request: Request, user: User = Depends(get_current_user)):
+    fallback_mode, simulated_mode = _get_modes()
     return templates.TemplateResponse(
         request=request,
         name="architecture.html",
         context={
             "active_page": "architecture",
             "user": user,
-            "fallback_mode": os.path.exists("data/fallback_active.flag"),
+            "fallback_mode": fallback_mode,
+            "simulated_mode": simulated_mode,
         },
     )
 

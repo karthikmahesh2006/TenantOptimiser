@@ -58,3 +58,43 @@ def test_scenario_validation_caps():
         scen.validate()
         assert scen.duration_s >= 5
         assert len(scen.tenants) <= 10
+
+
+@pytest.mark.asyncio
+async def test_alloc_mode_live_failure_when_docker_absent(monkeypatch):
+    """Verify that ALLOC_MODE=live fails cleanly when Docker daemon is not available."""
+    import json
+    from alloc_platform.config import config
+    from alloc_platform.db.models import Experiment
+    from alloc_platform.orchestrator.runner import execute_experiment_async
+
+    db = SessionLocal()
+    exp_id = "test_live_fail"
+    existing = db.query(Experiment).filter(Experiment.id == exp_id).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+
+    exp = Experiment(
+        id=exp_id,
+        name="Test Live Fail",
+        scenario_id="scenario_1_baseline",
+        policies_json=json.dumps(["fcfs"]),
+        repeats=1,
+        status="pending",
+    )
+    db.add(exp)
+    db.commit()
+    db.close()
+
+    monkeypatch.setattr(config, "alloc_mode", "live")
+    monkeypatch.setattr(config, "docker_host", "tcp://127.0.0.1:9999")
+
+    await execute_experiment_async(exp_id)
+
+    db = SessionLocal()
+    updated_exp = db.query(Experiment).filter(Experiment.id == exp_id).first()
+    assert updated_exp.status == "failed"
+    assert "ALLOC_MODE=live" in updated_exp.error_message
+    db.close()
+

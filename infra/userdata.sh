@@ -26,6 +26,7 @@ if [ ! -f /etc/alloc/env ]; then
     SECRET_KEY=$(openssl rand -hex 32)
     cat > /etc/alloc/env <<EOF
 SECRET_KEY=${SECRET_KEY}
+ALLOC_MODE=live
 DOCKER_HOST=tcp://127.0.0.1:2375
 DB_PATH=/var/lib/alloc/alloc.db
 MAX_TENANTS=10

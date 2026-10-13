@@ -44,10 +44,15 @@ def jain_index(values: Sequence[float]) -> float:
 
 
 def satisfaction(alloc: dict[str, float], demand: dict[str, float]) -> float:
-    """Computes bottleneck satisfaction factor s_i for a single tenant.
+    r"""Computes bottleneck satisfaction factor s_i for a single tenant.
 
     Formula:
         s_i = min_{r: demand_r > 0} (alloc_r / demand_r)
+
+    DENOMINATOR SPECIFICATION:
+        The denominator `demand` is strictly the tenant's DECLARED demand (as specified
+        in the tenant SLA/contract), NOT the dynamically estimated demand \hat{d}.
+        This ensures uniform and unskewed comparative benchmarking across all policies.
 
     Bounded in [0.0, 1.0]. If all demands are 0, returns 1.0.
     """
@@ -62,17 +67,24 @@ def satisfaction(alloc: dict[str, float], demand: dict[str, float]) -> float:
 
 
 def unmet_demand(alloc: dict[str, float], demand: dict[str, float]) -> dict[str, float]:
-    """Computes unmet demand per resource: max(0.0, demand_r - alloc_r)."""
+    r"""Computes unmet demand per resource: max(0.0, demand_r - alloc_r).
+
+    TARGET SPECIFICATION:
+        The `demand` parameter represents the tenant's DECLARED demand (contractual SLA request),
+        NOT the dynamically estimated demand \hat{d}.
+    """
     return {res: max(0.0, float(demand.get(res, 0.0) - alloc.get(res, 0.0))) for res in demand}
 
 
 def allocated_util(
     allocations: Sequence[dict[str, float]], capacity: dict[str, float]
 ) -> dict[str, float]:
-    """Computes the fraction of pool capacity allocated to tenants for each resource.
+    """Computes the fraction of pool capacity allocated (reserved) to tenants.
 
     Formula:
         U_{alloc, r} = (sum_i alloc_{i, r}) / capacity_r
+
+    Reported separately from consumed utilisation to distinguish reserved quota from actual load.
     """
     util: dict[str, float] = {}
     for res, cap in capacity.items():
@@ -87,10 +99,12 @@ def allocated_util(
 def consumed_util(
     consumptions: Sequence[dict[str, float]], capacity: dict[str, float]
 ) -> dict[str, float]:
-    """Computes the fraction of pool capacity actually consumed by tenants.
+    """Computes the fraction of pool capacity actually consumed (used) by tenants.
 
     Formula:
         U_{consumed, r} = (sum_i usage_{i, r}) / capacity_r
+
+    Reported separately from allocated utilisation to measure real hardware expenditure.
     """
     util: dict[str, float] = {}
     for res, cap in capacity.items():

@@ -15,6 +15,7 @@ from alloc_platform.allocator.fcfs import allocate_fcfs
 from alloc_platform.allocator.metrics import (
     allocated_util,
     churn,
+    consumed_util,
     count_changes,
     guarantee_satisfaction,
     jain_index,
@@ -82,7 +83,11 @@ async def execute_experiment_async(experiment_id: str) -> None:
         policies: List[str] = json.loads(exp.policies_json)
         rng = np.random.default_rng(scen_spec.seed)
 
-        # Check docker availability
+        # Check execution mode: live | sim | auto
+        alloc_mode = config.alloc_mode.lower()
+        if alloc_mode not in ("live", "sim", "auto"):
+            raise ValueError(f"Invalid ALLOC_MODE={config.alloc_mode}. Must be 'live', 'sim', or 'auto'.")
+
         docker_available = False
         enforcer: Optional[DockerEnforcer] = None
         try:
@@ -91,6 +96,24 @@ async def execute_experiment_async(experiment_id: str) -> None:
             docker_available = True
         except Exception:
             docker_available = False
+
+        if alloc_mode == "live":
+            if not docker_available:
+                raise RuntimeError(
+                    f"ALLOC_MODE=live requires active Docker daemon at {config.docker_host}, "
+                    "but connection failed. Run aborted."
+                )
+            import os
+            if os.name != "nt" and not os.path.exists(os.path.join(config.cgroup_fs_root, "cgroup.controllers")):
+                raise RuntimeError(
+                    f"ALLOC_MODE=live requires cgroup v2 mount at {config.cgroup_fs_root}, "
+                    "but cgroup.controllers was not found. Run aborted."
+                )
+            active_enforcer = enforcer
+        elif alloc_mode == "sim":
+            active_enforcer = None
+        else:  # "auto" for local development
+            active_enforcer = enforcer if docker_available else None
 
         host_mon = HostMonitor()
 
@@ -124,6 +147,7 @@ async def execute_experiment_async(experiment_id: str) -> None:
                         "run_id": run_id,
                         "policy": pol_name,
                         "repeat": rep,
+                        "simulated": active_enforcer is None,
                     },
                 )
 
@@ -133,7 +157,7 @@ async def execute_experiment_async(experiment_id: str) -> None:
                     run_id=run_id,
                     policy=pol_name,
                     scen_spec=scen_spec,
-                    enforcer=enforcer if docker_available else None,
+                    enforcer=active_enforcer,
                     host_mon=host_mon,
                     cancel_event=cancel_event,
                 )
@@ -188,6 +212,7 @@ async def _execute_single_run(
     adaptive_inst = AdaptiveAllocator()
 
     plans_history: List[Plan] = []
+    usages_history: List[List[Dict[str, float]]] = []
     prev_plan: Optional[Plan] = None
     container_ids: Dict[str, str] = {}
 
@@ -313,6 +338,10 @@ async def _execute_single_run(
                 )
                 db.add(t_sample)
 
+            # Record step usages for consumed utilisation audit
+            step_usages = [dict(obs[t.id].usage) for t in active_tenants if t.active and t.id in obs]
+            usages_history.append(step_usages)
+
             # Sample host metrics
             cpu_pct, mem_used, mem_tot, steal_pct = host_mon.sample_procfs()
             h_sample = HostSample(
@@ -388,6 +417,7 @@ async def _execute_single_run(
                     "run_id": run_id,
                     "epoch": step,
                     "policy": policy,
+                    "provenance": provenance,
                     "alloc": plan.alloc,
                     "obs": {
                         k: {"cpu": v.usage["cpu"], "mem_mb": v.usage["mem_mb"]}
@@ -402,7 +432,7 @@ async def _execute_single_run(
 
         # Compute summary metrics for run
         _compute_and_save_run_metrics(
-            db, run_id, plans_history, active_tenants, curr_pool, provenance
+            db, run_id, plans_history, usages_history, active_tenants, curr_pool, provenance
         )
 
         run_row = db.query(Run).filter(Run.id == run_id).first()
@@ -421,6 +451,7 @@ def _compute_and_save_run_metrics(
     db: Session,
     run_id: str,
     plans: List[Plan],
+    usages_history: List[List[Dict[str, float]]],
     tenants: List[Tenant],
     pool: Pool,
     provenance: str,
@@ -431,8 +462,8 @@ def _compute_and_save_run_metrics(
     last_plan = plans[-1]
     active_tenants = [t for t in tenants if t.active]
 
+    # Bottleneck satisfaction evaluated strictly against DECLARED demand (SLA contract)
     satisfactions = [satisfaction(last_plan.alloc.get(t.id, {}), t.demand) for t in active_tenants]
-    # Primary: Jain on satisfaction / weight
     primary_values = [s / max(0.1, t.weight) for s, t in zip(satisfactions, active_tenants)]
     jain_primary = jain_index(primary_values)
 
@@ -444,9 +475,13 @@ def _compute_and_save_run_metrics(
         dom_shares.append(max(shares) / max(0.1, t.weight) if shares else 0.0)
     jain_secondary = jain_index(dom_shares)
 
-    # Utilization
+    # 1. Allocated (reserved) utilisation
     flat_allocs = [al for p in plans for al in p.alloc.values()]
     u_alloc = allocated_util(flat_allocs, pool.capacity)
+
+    # 2. Consumed (actual usage) utilisation
+    flat_usages = [u for step_u in usages_history for u in step_u]
+    u_consumed = consumed_util(flat_usages, pool.capacity)
 
     churn_val = churn(plans, pool.capacity)
     changes_val = count_changes(plans)
@@ -461,6 +496,8 @@ def _compute_and_save_run_metrics(
         "mean_satisfaction": float(np.mean(satisfactions)) if satisfactions else 0.0,
         "allocated_util_cpu": u_alloc.get("cpu", 0.0) / max(1, len(plans)),
         "allocated_util_mem": u_alloc.get("mem_mb", 0.0) / max(1, len(plans)),
+        "consumed_util_cpu": u_consumed.get("cpu", 0.0) / max(1, len(usages_history)),
+        "consumed_util_mem": u_consumed.get("mem_mb", 0.0) / max(1, len(usages_history)),
         "churn": churn_val,
         "changes_count": float(changes_val),
         "guarantee_satisfaction_feasible": feas_rate,

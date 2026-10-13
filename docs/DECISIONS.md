@@ -32,10 +32,10 @@
 - **Decision:** Placed `tecnativa/docker-socket-proxy` between the orchestrator and dockerd listening exclusively on `127.0.0.1:2375`. Disabled exec, volumes, and arbitrary image pulling. Restricted network access for tenant containers to an isolated bridge network (`alloc-tenants`) with internal routing only (no public egress).
 - **Consequences:** Fully satisfies least-privilege security posture.
 
-## ADR-006: Dual-Mode Execution & Zero Public IPv4 Cost Avoidance
-- **Context:** User instruction explicitly directed: "don't need any public ipv4 currently, don't need unnecessary costs for maintaining a public one, just need to demonstrate if the project works". Furthermore, local development on Windows environments without Docker Desktop requires a way to verify UI and orchestration logic.
-- **Decision:** The orchestrator runner checks Docker connectivity. If Docker daemon is absent or offline, it gracefully executes high-fidelity live fluid simulation with full telemetry and event broadcasting, tagging records as `SIMULATED`. When Docker is connected (on EC2), it operates via `tecnativa/docker-socket-proxy` and tags records as `MEASURED`. On AWS, no public IPv4, EIP, NAT Gateway, or ALB is provisioned; management is exclusively via SSM Session Manager port forwarding.
-- **Consequences:** Zero unnecessary AWS cloud expenditure, 100% testable locally and offline.
+## ADR-006: Execution Modes & Network Ingress Security
+- **Context:** User instruction updated requirement: "public IPv4 allowed, security group has zero inbound rules, access only via SSM port forwarding." Local development without Docker Desktop requires simulation, while EC2 deployments must execute live container workloads without silent fallbacks.
+- **Decision:** Public IPv4 is assigned to the EC2 instance to permit outbound package downloads without requiring an expensive NAT Gateway. The Security Group enforces ZERO inbound rules (no open inbound ports; `IpPermissions: []`). Inbound access to the application web console (port 8000) is conducted exclusively through AWS Systems Manager (SSM) Session Manager port forwarding. Execution mode is controlled by `ALLOC_MODE=live|sim|auto`. On the EC2 instance, `ALLOC_MODE=live` is strictly enforced: if Docker or cgroup v2 is unavailable, runs fail immediately with an explicit error. Simulated runs display a persistent banner.
+- **Consequences:** Zero internet ingress exposure, zero NAT Gateway/ALB charges, and complete data provenance transparency.
 
 ## ADR-007: Asynchronous Orchestration and Event-Driven Live UI
 - **Context:** Benchmark experiments run across multiple repeats and epochs, while web clients observe real-time telemetry graphs and allocation changes without full-page reloads.

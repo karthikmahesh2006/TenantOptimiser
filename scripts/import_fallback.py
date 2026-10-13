@@ -19,9 +19,33 @@ def import_bundle(input_path: str = "data/recorded_fallback.json") -> None:
     with open(input_path, "r", encoding="utf-8") as f:
         bundle = json.load(f)
 
+    # STRICT AUDIT CHECK: Refuse any bundle whose runs are not all MEASURED
+    bundle_prov = bundle.get("provenance", "SIMULATED")
+    if bundle_prov != "MEASURED":
+        raise ValueError(
+            f"Import refused: Fallback bundle '{input_path}' has bundle-level provenance '{bundle_prov}'. "
+            "Only bundles marked strictly as MEASURED from real EC2 runs may be imported for faculty demo fallback."
+        )
+
+    experiments = bundle.get("experiments", [])
+    if not experiments:
+        raise ValueError(f"Import refused: Bundle '{input_path}' contains zero experiments.")
+
+    for exp_data in experiments:
+        runs = exp_data.get("runs", [])
+        if not runs:
+            raise ValueError(f"Import refused: Experiment '{exp_data.get('id')}' contains zero runs.")
+        for r_data in runs:
+            run_prov = r_data.get("provenance", "SIMULATED")
+            if run_prov != "MEASURED":
+                raise ValueError(
+                    f"Import refused: Run '{r_data.get('id')}' in experiment '{exp_data.get('id')}' has provenance '{run_prov}'. "
+                    "All runs must be strictly MEASURED on real hardware."
+                )
+
     db = SessionLocal()
     try:
-        for exp_data in bundle.get("experiments", []):
+        for exp_data in experiments:
             existing = db.query(Experiment).filter(Experiment.id == exp_data["id"]).first()
             if not existing:
                 e = Experiment(

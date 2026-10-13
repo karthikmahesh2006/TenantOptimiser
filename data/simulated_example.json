@@ -51,7 +51,8 @@
             "guarantee_satisfaction_feasible": 1.0,
             "guarantee_satisfaction_infeasible": 0.0,
             "solve_ms_avg": 6.364516666666668
-          }
+          },
+          "provenance": "SIMULATED"
         },
         {
           "id": "run_f638b30c3f65",
@@ -71,7 +72,8 @@
             "guarantee_satisfaction_feasible": 0.8333333333333334,
             "guarantee_satisfaction_infeasible": 0.0,
             "solve_ms_avg": 0.05406999999999999
-          }
+          },
+          "provenance": "SIMULATED"
         },
         {
           "id": "run_07fd2aa7513a",
@@ -91,9 +93,11 @@
             "guarantee_satisfaction_feasible": 1.0,
             "guarantee_satisfaction_infeasible": 0.0,
             "solve_ms_avg": 0.08169333333333334
-          }
+          },
+          "provenance": "SIMULATED"
         }
       ]
     }
-  ]
+  ],
+  "provenance": "SIMULATED"
 }

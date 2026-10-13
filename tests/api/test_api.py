@@ -125,6 +125,8 @@ async def test_demo_start_and_execution():
                 assert len(metrics) > 0
                 m_dict = {m.metric_name: m.metric_value for m in metrics}
                 assert "jain_fairness_primary" in m_dict
+                assert "allocated_util_cpu" in m_dict
+                assert "consumed_util_cpu" in m_dict
                 assert "churn" in m_dict
             db.close()
     finally:

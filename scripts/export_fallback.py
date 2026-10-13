@@ -28,10 +28,10 @@ def export_bundle(output_path: str = "data/recorded_fallback.json") -> None:
             runs = db.query(Run).filter(Run.experiment_id == e.id).all()
             run_list = []
             for r in runs:
-                metrics = {
-                    m.metric_name: m.metric_value
-                    for m in db.query(RunMetric).filter(RunMetric.run_id == r.id).all()
-                }
+                metric_rows = db.query(RunMetric).filter(RunMetric.run_id == r.id).all()
+                metrics = {m.metric_name: m.metric_value for m in metric_rows}
+                # Determine provenance from metrics or default to SIMULATED
+                run_prov = "MEASURED" if (metric_rows and all(m.provenance == "MEASURED" for m in metric_rows)) else "SIMULATED"
                 run_list.append(
                     {
                         "id": r.id,
@@ -40,6 +40,7 @@ def export_bundle(output_path: str = "data/recorded_fallback.json") -> None:
                         "status": r.status,
                         "is_valid": r.is_valid,
                         "invalidation_reason": r.invalidation_reason,
+                        "provenance": run_prov,
                         "metrics": metrics,
                     }
                 )
@@ -57,11 +58,15 @@ def export_bundle(output_path: str = "data/recorded_fallback.json") -> None:
                 }
             )
 
+        all_runs = [r for exp in exp_list for r in exp["runs"]]
+        bundle_prov = "MEASURED" if (all_runs and all(r["provenance"] == "MEASURED" for r in all_runs)) else "SIMULATED"
+
         bundle = {
             "recording_date": datetime.utcnow().isoformat(),
             "instance_type": "c7i-flex.large",
             "account_label": "481374029754",
             "region": "ap-south-1",
+            "provenance": bundle_prov,
             "experiments": exp_list,
         }
 

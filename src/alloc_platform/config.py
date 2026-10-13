@@ -27,6 +27,9 @@ class PlatformConfig(BaseModel):
     min_cpu_credit_balance: float = 10.0
 
     # Enforcement & Docker
+    alloc_mode: str = Field(
+        default_factory=lambda: os.getenv("ALLOC_MODE", "auto").lower()
+    )
     docker_host: str = Field(
         default_factory=lambda: os.getenv("DOCKER_HOST", "tcp://127.0.0.1:2375")
     )

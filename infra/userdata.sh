@@ -74,7 +74,8 @@ if [ -z "$BUCKET" ]; then
         BUCKET=$(cat /etc/alloc/bucket_name)
     else
         ACCT=$(aws sts get-caller-identity --query Account --output text)
-        REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region || echo "ap-south-1")
+        IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)
+        REGION=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/placement/region || echo "ap-south-1")
         BUCKET="alloc-platform-${ACCT}-${REGION}"
     fi
 fi
@@ -94,7 +95,8 @@ docker build -t alloc-worker:latest "$REL_DIR/src/alloc_platform/workload/worker
 echo "Creating application virtual environment..."
 python3.11 -m venv "$REL_DIR/.venv"
 "$REL_DIR/.venv/bin/pip" install --upgrade pip
-"$REL_DIR/.venv/bin/pip" install "$REL_DIR"
+"$REL_DIR/.venv/bin/pip" install "$REL_DIR[dev]"
+
 
 chown -R alloc:alloc "$REL_DIR"
 

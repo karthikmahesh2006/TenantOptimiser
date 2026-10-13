@@ -17,7 +17,12 @@ from alloc_platform.db.session import get_db
 pages_router = APIRouter()
 
 templates_dir = Path(__file__).parent / "templates"
+if not templates_dir.exists():
+    candidate = Path.cwd() / "src" / "alloc_platform" / "api" / "templates"
+    if candidate.exists():
+        templates_dir = candidate
 templates = Jinja2Templates(directory=str(templates_dir))
+
 
 
 def _get_modes() -> tuple[bool, bool]:

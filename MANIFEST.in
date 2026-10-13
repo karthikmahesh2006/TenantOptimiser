@@ -1,0 +1,2 @@
+recursive-include src/alloc_platform/api/templates *
+recursive-include src/alloc_platform/api/static *

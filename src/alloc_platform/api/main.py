@@ -91,7 +91,14 @@ app = FastAPI(
 
 # Mount static assets
 static_path = Path(__file__).parent / "static"
+if not static_path.exists():
+    candidate = Path.cwd() / "src" / "alloc_platform" / "api" / "static"
+    if candidate.exists():
+        static_path = candidate
+    else:
+        static_path.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
 
 # Include routers
 app.include_router(pages_router)

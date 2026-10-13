@@ -28,8 +28,10 @@ from alloc_platform.db.models import (
     Experiment,
     ExperimentLock,
     HostSample,
+    PoolModel,
     Run,
     RunMetric,
+    ScenarioModel,
     TenantSample,
 )
 from alloc_platform.db.repo import (
@@ -46,8 +48,10 @@ from alloc_platform.db.repo import (
 from alloc_platform.db.session import get_db
 from alloc_platform.enforcement.docker_enforcer import DockerEnforcer
 from alloc_platform.orchestrator.runner import cancel_active_experiment, execute_experiment_async
+from alloc_platform.orchestrator.scenario import get_predefined_scenarios
 
 api_router = APIRouter(prefix="/api/v1")
+
 
 
 def _get_git_sha() -> str:
@@ -314,6 +318,25 @@ def compare_experiments(
 @api_router.post("/demo/start")
 async def start_demo_benchmark(db: Session = Depends(get_db), _=Depends(require_admin)):
     """Runs a rapid 3-tenant benchmark across FCFS, WP, and Adaptive."""
+    if db.query(PoolModel).filter(PoolModel.id == "default_pool").first() is None:
+        upsert_pool(db, "default_pool", "Host Primary Pool", cpu=2.0, mem_mb=4096.0)
+
+    if db.query(ScenarioModel).filter(ScenarioModel.id == "demo_scenario").first() is None:
+        scenarios = get_predefined_scenarios()
+        demo_spec = scenarios.get("demo_scenario")
+        if demo_spec:
+            db.add(
+                ScenarioModel(
+                    id="demo_scenario",
+                    name=demo_spec.name,
+                    duration_s=demo_spec.duration_s,
+                    seed=demo_spec.seed,
+                    pool_id="default_pool",
+                    spec_json=json.dumps({"name": demo_spec.name}),
+                )
+            )
+            db.commit()
+
     demo_exp_id = f"demo_{uuid.uuid4().hex[:8]}"
     exp = Experiment(
         id=demo_exp_id,
@@ -325,6 +348,7 @@ async def start_demo_benchmark(db: Session = Depends(get_db), _=Depends(require_
     )
     db.add(exp)
     db.commit()
+
 
     asyncio.create_task(execute_experiment_async(demo_exp_id))
     log_audit(db, "demo_started", details=f"Launched demo experiment {demo_exp_id}")

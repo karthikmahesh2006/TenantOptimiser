@@ -9,7 +9,37 @@ from alloc_platform.db.session import init_db
 
 @pytest.fixture(autouse=True)
 def setup_test_db():
+    import json
+
+    from alloc_platform.db.models import PoolModel, ScenarioModel
+    from alloc_platform.db.repo import upsert_pool
+    from alloc_platform.db.session import SessionLocal
+
     init_db()
+    db = SessionLocal()
+    try:
+        if db.query(PoolModel).filter(PoolModel.id == "default_pool").first() is None:
+            upsert_pool(db, "default_pool", "Host Primary Pool", cpu=2.0, mem_mb=4096.0)
+
+        from alloc_platform.orchestrator.scenario import get_predefined_scenarios
+
+        scenarios = get_predefined_scenarios()
+        for sc_id, sc in scenarios.items():
+            if db.query(ScenarioModel).filter(ScenarioModel.id == sc_id).first() is None:
+                db.add(
+                    ScenarioModel(
+                        id=sc_id,
+                        name=sc.name,
+                        duration_s=sc.duration_s,
+                        seed=sc.seed,
+                        pool_id="default_pool",
+                        spec_json=json.dumps({"name": sc.name}),
+                    )
+                )
+        db.commit()
+    finally:
+        db.close()
+
 
 
 @pytest.mark.asyncio

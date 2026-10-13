@@ -151,15 +151,21 @@ class AdaptiveAllocator:
         resources = list(pool.capacity.keys())
         # Tenant weights and minimum satisfaction factors
         weights = np.array([t.weight for t in active_tenants], dtype=np.float64)
+        feasible, admitted_ids, _ = check_guarantee_feasibility(pool, active_tenants)
         s_min = np.zeros(n, dtype=np.float64)
 
+
         for i, t in enumerate(active_tenants):
-            ratios = [
-                float(t.minimum.get(r, 0.0)) / dhat[t.id][r]
-                for r in resources
-                if dhat[t.id].get(r, 0.0) > 1e-9
-            ]
-            s_min[i] = min(1.0, max(ratios)) if ratios else 0.0
+            if t.id in admitted_ids:
+                ratios = [
+                    float(t.minimum.get(r, 0.0)) / dhat[t.id][r]
+                    for r in resources
+                    if dhat[t.id].get(r, 0.0) > 1e-9
+                ]
+                s_min[i] = min(1.0, max(ratios)) if ratios else 0.0
+            else:
+                s_min[i] = 0.0
+
 
         # Construct feasible initial point using proportional allocator
         prop_plan = allocate_proportional(
@@ -255,19 +261,27 @@ class AdaptiveAllocator:
                 constraints=constraints,
                 options={"maxiter": 100, "ftol": 1e-5},
             )
-            if res.success or res.status in (0, 9):  # 9 is iteration limit, often good enough
+            if res.success:
                 s_opt = np.clip(res.x, s_min, 1.0)
                 alloc: dict[str, dict[str, float]] = {}
                 for i, t in enumerate(active_tenants):
                     alloc[t.id] = {}
                     for j, r in enumerate(resources):
                         alloc[t.id][r] = round(float(s_opt[i] * dhat_matrix[i, j]), 6)
+                # Enforce capacity invariant against float precision
+                for j, r in enumerate(resources):
+                    tot_r = sum(alloc[t.id][r] for t in active_tenants)
+                    if tot_r > pool.capacity[r] + 1e-6:
+                        scale = pool.capacity[r] / tot_r
+                        for t in active_tenants:
+                            alloc[t.id][r] = round(alloc[t.id][r] * scale, 6)
                 solve_ms = (time.perf_counter() - start_t) * 1000.0
                 return alloc, notes, solve_ms
             else:
                 notes.append(
                     f"SLSQP did not converge ({res.message}); falling back to proportional."
                 )
+
         except Exception as e:
             notes.append(f"SLSQP error ({e!s}); falling back to proportional.")
 
@@ -359,49 +373,48 @@ class AdaptiveAllocator:
                     # Cannot exceed declared demand or capacity
                     dem_mem = float(t.demand.get("mem_mb", pool.capacity["mem_mb"]))
                     filtered[t.id]["mem_mb"] = min(dem_mem, filtered[t.id]["mem_mb"])
-            return filtered
+        else:
+            for t in active_tenants:
+                tid = t.id
+                prev_t = prev_plan.alloc.get(tid)
+                if not prev_t:
+                    continue
 
-        for t in active_tenants:
-            tid = t.id
-            prev_t = prev_plan.alloc.get(tid)
-            if not prev_t:
-                continue
+                dwell = now - self.last_change_time.get(tid, 0.0)
+                is_material_change = False
 
-            dwell = now - self.last_change_time.get(tid, 0.0)
-            is_material_change = False
+                for res, cap in pool.capacity.items():
+                    p_val = prev_t.get(res, 0.0)
+                    n_val = filtered[tid].get(res, p_val)
+                    rel_change = abs(n_val - p_val) / max(cap, 1e-6)
 
-            for res, cap in pool.capacity.items():
-                p_val = prev_t.get(res, 0.0)
-                n_val = filtered[tid].get(res, p_val)
-                rel_change = abs(n_val - p_val) / max(cap, 1e-6)
+                    # Check deadband and dwell
+                    if rel_change <= self.params.deadband and dwell < self.params.min_dwell_s:
+                        # Keep previous value
+                        filtered[tid][res] = p_val
+                    else:
+                        is_material_change = True
 
-                # Check deadband and dwell
-                if rel_change <= self.params.deadband and dwell < self.params.min_dwell_s:
-                    # Keep previous value
-                    filtered[tid][res] = p_val
-                else:
-                    is_material_change = True
+                    # Rate-limit shrinking
+                    if filtered[tid][res] < p_val - 1e-6:
+                        min_allowed = p_val * (1.0 - self.params.max_shrink_per_epoch)
+                        filtered[tid][res] = max(filtered[tid][res], min_allowed)
 
-                # Rate-limit shrinking
-                if filtered[tid][res] < p_val - 1e-6:
-                    min_allowed = p_val * (1.0 - self.params.max_shrink_per_epoch)
-                    filtered[tid][res] = max(filtered[tid][res], min_allowed)
+                    # Guarantee minimum enforcement
+                    min_req = float(t.minimum.get(res, 0.0))
+                    filtered[tid][res] = max(filtered[tid][res], min_req)
 
-                # Guarantee minimum enforcement
-                min_req = float(t.minimum.get(res, 0.0))
-                filtered[tid][res] = max(filtered[tid][res], min_req)
+                # Memory safety margin
+                t_obs = obs.get(tid) if obs else None
+                if t_obs and "mem_mb" in pool.capacity:
+                    used_mem = float(t_obs.usage.get("mem_mb", 0.0))
+                    safe_mem = used_mem + self.params.memory_safety_mb
+                    filtered[tid]["mem_mb"] = max(filtered[tid]["mem_mb"], safe_mem)
+                    dem_mem = float(t.demand.get("mem_mb", pool.capacity["mem_mb"]))
+                    filtered[tid]["mem_mb"] = min(dem_mem, filtered[tid]["mem_mb"])
 
-            # Memory safety margin
-            t_obs = obs.get(tid) if obs else None
-            if t_obs and "mem_mb" in pool.capacity:
-                used_mem = float(t_obs.usage.get("mem_mb", 0.0))
-                safe_mem = used_mem + self.params.memory_safety_mb
-                filtered[tid]["mem_mb"] = max(filtered[tid]["mem_mb"], safe_mem)
-                dem_mem = float(t.demand.get("mem_mb", pool.capacity["mem_mb"]))
-                filtered[tid]["mem_mb"] = min(dem_mem, filtered[tid]["mem_mb"])
-
-            if is_material_change:
-                self.last_change_time[tid] = now
+                if is_material_change:
+                    self.last_change_time[tid] = now
 
         # Invariant check: sum of filtered allocations cannot exceed capacity
         for res, cap in pool.capacity.items():
@@ -423,7 +436,15 @@ class AdaptiveAllocator:
                         if excess <= 1e-9:
                             break
 
+                # If excess still remains, scale down all active tenants proportionally
+                if excess > 1e-9:
+                    cur_tot = sum(filtered[t.id].get(res, 0.0) for t in active_tenants)
+                    scale = cap / cur_tot if cur_tot > 0 else 0.0
+                    for t in active_tenants:
+                        filtered[t.id][res] = round(filtered[t.id][res] * scale, 6)
+
         return filtered
+
 
     def allocate(
         self,

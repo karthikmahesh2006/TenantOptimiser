@@ -41,9 +41,9 @@ def page_overview(
     fallback_mode = os.path.exists("data/fallback_active.flag")
 
     return templates.TemplateResponse(
-        "overview.html",
-        {
-            "request": request,
+        request=request,
+        name="overview.html",
+        context={
             "active_page": "overview",
             "user": user,
             "pool": pool,
@@ -63,9 +63,9 @@ def page_tenants(
 ):
     tenants = get_all_tenants(db)
     return templates.TemplateResponse(
-        "tenants.html",
-        {
-            "request": request,
+        request=request,
+        name="tenants.html",
+        context={
             "active_page": "tenants",
             "user": user,
             "tenants": tenants,
@@ -77,9 +77,9 @@ def page_tenants(
 @pages_router.get("/experiment-config", response_class=HTMLResponse)
 def page_config(request: Request, user: User = Depends(get_current_user)):
     return templates.TemplateResponse(
-        "experiment_config.html",
-        {
-            "request": request,
+        request=request,
+        name="experiment_config.html",
+        context={
             "active_page": "config",
             "user": user,
             "fallback_mode": os.path.exists("data/fallback_active.flag"),
@@ -90,9 +90,9 @@ def page_config(request: Request, user: User = Depends(get_current_user)):
 @pages_router.get("/live-console", response_class=HTMLResponse)
 def page_console(request: Request, user: User = Depends(get_current_user)):
     return templates.TemplateResponse(
-        "live_console.html",
-        {
-            "request": request,
+        request=request,
+        name="live_console.html",
+        context={
             "active_page": "console",
             "user": user,
             "fallback_mode": os.path.exists("data/fallback_active.flag"),
@@ -105,9 +105,9 @@ def page_compare(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     return templates.TemplateResponse(
-        "compare.html",
-        {
-            "request": request,
+        request=request,
+        name="compare.html",
+        context={
             "active_page": "compare",
             "user": user,
             "metrics_summary": {},
@@ -122,9 +122,9 @@ def page_history(
 ):
     experiments = get_all_experiments(db, limit=20)
     return templates.TemplateResponse(
-        "history.html",
-        {
-            "request": request,
+        request=request,
+        name="history.html",
+        context={
             "active_page": "history",
             "user": user,
             "experiments": experiments,
@@ -136,9 +136,9 @@ def page_history(
 @pages_router.get("/architecture", response_class=HTMLResponse)
 def page_architecture(request: Request, user: User = Depends(get_current_user)):
     return templates.TemplateResponse(
-        "architecture.html",
-        {
-            "request": request,
+        request=request,
+        name="architecture.html",
+        context={
             "active_page": "architecture",
             "user": user,
             "fallback_mode": os.path.exists("data/fallback_active.flag"),
@@ -148,7 +148,11 @@ def page_architecture(request: Request, user: User = Depends(get_current_user)):
 
 @pages_router.get("/login", response_class=HTMLResponse)
 def page_login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": None},
+    )
 
 
 @pages_router.post("/login")
@@ -162,8 +166,9 @@ def action_login(
     user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.password_hash):
         return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "Invalid username or password"},
+            request=request,
+            name="login.html",
+            context={"error": "Invalid username or password"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 

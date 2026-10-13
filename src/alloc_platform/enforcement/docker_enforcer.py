@@ -19,6 +19,8 @@ class ApplyResult:
     applied_mem_mb: float
     apply_ms: float
     warning: str | None = None
+    success: bool = True
+
 
 
 @dataclass
@@ -150,7 +152,9 @@ class DockerEnforcer:
             applied_mem_mb=applied_mem,
             apply_ms=round(apply_ms, 2),
             warning=warning,
+            success=(warning is None),
         )
+
 
     def verify_limits(self, container_id: str, expected_cpu: float, expected_mem: float) -> bool:
         """Reads back cgroup v2 cpu.max and memory.max to confirm kernel enforcement."""

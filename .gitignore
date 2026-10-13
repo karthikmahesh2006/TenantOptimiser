@@ -50,3 +50,5 @@ Thumbs.db
 desktop.ini
 *.swp
 *~
+alloc.db*
+bootstrap_admin.txt

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}System Architecture - Alloc Platform{% endblock %}
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+  <h2>System Architecture & Security Posture</h2>
+  <p style="color: var(--text-secondary); font-size: 0.95rem;">Host isolation, container enforcement, and live telemetry architecture.</p>
+</div>
+
+<div class="card" style="margin-bottom: 2rem;">
+  <h3>Component Breakdown & Responsibility</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Subsystem</th>
+        <th>Key Technologies</th>
+        <th>Security & Operational Boundaries</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Host Isolation</strong></td>
+        <td>AWS EC2, AL2023, SSM</td>
+        <td>Zero inbound Security Group rules. Admin tunnel strictly over encrypted SSM Session Manager.</td>
+      </tr>
+      <tr>
+        <td><strong>Container Sandbox</strong></td>
+        <td>Docker, tecnativa proxy</td>
+        <td>docker-socket-proxy on 127.0.0.1:2375 (API section filtering: CONTAINERS=1, EXEC=0, VOLUMES=0).</td>
+      </tr>
+      <tr>
+        <td><strong>Kernel Enforcement</strong></td>
+        <td>cgroup v2, systemd</td>
+        <td>CFS CPU quota (100ms period) & memory.max (swap disabled). Readback verification.</td>
+      </tr>
+      <tr>
+        <td><strong>Allocation Engine</strong></td>
+        <td>SciPy SLSQP, NumPy</td>
+        <td>Convex utility maximization with Pseudo-Huber churn penalty solved in &lt;50ms.</td>
+      </tr>
+      <tr>
+        <td><strong>Telemetry & Storage</strong></td>
+        <td>SQLite (WAL), procfs</td>
+        <td>1 Hz cgroup v2 sampling, host steal monitoring, and strict provenance tagging.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Data Provenance Taxonomy</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+    <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem;">
+      <span class="badge badge-measured" style="margin-bottom: 0.5rem;">MEASURED</span>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">Direct measurements from cgroup v2 (cpu.stat, memory.current), host procfs (/proc/stat), and HTTP request latency timers.</p>
+    </div>
+    <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem;">
+      <span class="badge badge-calculated" style="margin-bottom: 0.5rem;">CALCULATED</span>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">Pure mathematical derivations: Jain's Fairness Index, bottleneck satisfaction ratios, bootstrap 95% confidence intervals.</p>
+    </div>
+    <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem;">
+      <span class="badge badge-configured" style="margin-bottom: 0.5rem;">CONFIGURED</span>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">User/operator inputs: tenant declared demands, minimum guarantees, pool capacity caps, and scenario event schedules.</p>
+    </div>
+    <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem;">
+      <span class="badge badge-simulated" style="margin-bottom: 0.5rem;">SIMULATED</span>
+      <p style="font-size: 0.85rem; color: var(--text-secondary);">Synthetic traces generated solely by the offline fluid model for unit tests and local demonstrations.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

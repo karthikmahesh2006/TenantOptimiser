@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Experiment Configuration - Alloc Platform{% endblock %}
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+  <div style="margin-bottom: 1.5rem;">
+    <h2>Configure Allocation Benchmark Experiment</h2>
+    <p style="color: var(--text-secondary); font-size: 0.95rem;">Select pool parameters, benchmark scenarios, contending policies, and repeat blocks.</p>
+  </div>
+
+  <div class="card">
+    <form hx-post="/api/v1/experiments" hx-swap="none" onsubmit="handleExperimentCreated(event);">
+      <div class="form-group">
+        <label>Experiment Title</label>
+        <input type="text" name="name" required value="Adaptive vs Baselines Multi-Tenant Benchmark">
+      </div>
+
+      <div class="form-group">
+        <label>Benchmark Scenario Preset</label>
+        <select name="scenario_id" id="scenario-picker">
+          <option value="scenario_1_baseline">Scenario 1: Heterogeneous Workload Baseline (Static 60s)</option>
+          <option value="scenario_2_burst">Scenario 2: Flash Crowd Workload Burst (Surge at t=20s)</option>
+          <option value="scenario_3_capacity_cut">Scenario 3: Physical Capacity Cut Under Contention (t=25s)</option>
+          <option value="scenario_4_churn">Scenario 4: Tenant Churn & Dynamic Arrival/Departure</option>
+          <option value="demo_scenario">Demo Scenario: Rapid 3-Tenant Comparison (Shortened 30s)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label style="margin-bottom: 0.5rem;">Allocation Policies to Compare</label>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
+            <input type="checkbox" name="policies" value="fcfs" checked style="width: auto;">
+            First-Come, First-Served (FCFS)
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
+            <input type="checkbox" name="policies" value="proportional" checked style="width: auto;">
+            Weighted Proportional (WP Water-Filling)
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
+            <input type="checkbox" name="policies" value="drf" checked style="width: auto;">
+            Dominant Resource Fairness (DRF)
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
+            <input type="checkbox" name="policies" value="adaptive" checked style="width: auto;">
+            Adaptive Convex Optimizer (Proposed)
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Repeats per Policy Block</label>
+        <input type="number" name="repeats" value="1" min="1" max="10">
+        <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">Policy execution orders are randomly shuffled across repeat blocks to prevent thermal/caching bias.</small>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
+        <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">
+          Enqueue & Launch Experiment
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+async function handleExperimentCreated(e) {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+  const policies = Array.from(form.querySelectorAll('input[name="policies"]:checked')).map(cb => cb.value);
+
+  const payload = {
+    name: formData.get("name"),
+    scenario_id: formData.get("scenario_id"),
+    policies: policies,
+    repeats: parseInt(formData.get("repeats")) || 1
+  };
+
+  const res = await fetch("/api/v1/experiments", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    // Auto start
+    await fetch(`/api/v1/experiments/${data.id}/start`, {method: "POST"});
+    window.location.href = "/live-console";
+  } else {
+    alert("Failed to create experiment");
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Alloc Platform{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/chart.umd.js"></script>
+</head>
+<body>
+  <header>
+    <a href="/" class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      Alloc Platform
+    </a>
+    <nav>
+      <a href="/" class="{% if active_page == 'overview' %}active{% endif %}">Overview</a>
+      <a href="/tenants" class="{% if active_page == 'tenants' %}active{% endif %}">Tenants</a>
+      <a href="/experiment-config" class="{% if active_page == 'config' %}active{% endif %}">Configure</a>
+      <a href="/live-console" class="{% if active_page == 'console' %}active{% endif %}">Live Console</a>
+      <a href="/compare" class="{% if active_page == 'compare' %}active{% endif %}">Comparison</a>
+      <a href="/history" class="{% if active_page == 'history' %}active{% endif %}">History</a>
+      <a href="/architecture" class="{% if active_page == 'architecture' %}active{% endif %}">Architecture</a>
+      {% if user %}
+        <span style="font-size: 0.85rem; color: var(--text-secondary);">User: {{ user.username }} ({{ user.role }})</span>
+      {% else %}
+        <a href="/login" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">Login</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main>
+    {% if fallback_mode %}
+      <div class="fallback-banner">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        RECORDED REAL RESULTS (Recorded on AWS c7i-flex.large, Account: 481374029754, Region: ap-south-1)
+      </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

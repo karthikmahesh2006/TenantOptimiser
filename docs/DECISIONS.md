@@ -31,3 +31,14 @@
 - **Context:** The web application needs to adjust container cgroups dynamically but must not be granted unrestricted root Docker privileges.
 - **Decision:** Placed `tecnativa/docker-socket-proxy` between the orchestrator and dockerd listening exclusively on `127.0.0.1:2375`. Disabled exec, volumes, and arbitrary image pulling. Restricted network access for tenant containers to an isolated bridge network (`alloc-tenants`) with internal routing only (no public egress).
 - **Consequences:** Fully satisfies least-privilege security posture.
+
+## ADR-006: Dual-Mode Execution & Zero Public IPv4 Cost Avoidance
+- **Context:** User instruction explicitly directed: "don't need any public ipv4 currently, don't need unnecessary costs for maintaining a public one, just need to demonstrate if the project works". Furthermore, local development on Windows environments without Docker Desktop requires a way to verify UI and orchestration logic.
+- **Decision:** The orchestrator runner checks Docker connectivity. If Docker daemon is absent or offline, it gracefully executes high-fidelity live fluid simulation with full telemetry and event broadcasting, tagging records as `SIMULATED`. When Docker is connected (on EC2), it operates via `tecnativa/docker-socket-proxy` and tags records as `MEASURED`. On AWS, no public IPv4, EIP, NAT Gateway, or ALB is provisioned; management is exclusively via SSM Session Manager port forwarding.
+- **Consequences:** Zero unnecessary AWS cloud expenditure, 100% testable locally and offline.
+
+## ADR-007: Asynchronous Orchestration and Event-Driven Live UI
+- **Context:** Benchmark experiments run across multiple repeats and epochs, while web clients observe real-time telemetry graphs and allocation changes without full-page reloads.
+- **Decision:** Background experiment runs are managed as asynchronous coroutines (`execute_experiment_async`) with non-blocking cooperative pacing (`config.epoch_interval_s`). Route handlers triggering experiments are declared as `async def` to ensure event loop attachment. Telemetry is streamed to HTMX/vanilla JavaScript clients via Server-Sent Events (`/api/v1/events`), while mutual exclusion is enforced by a single-experiment database lock.
+- **Consequences:** Responsive web UI, instant live chart rendering, and complete prevention of concurrent experiment resource contamination.
+

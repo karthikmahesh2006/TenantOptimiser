@@ -1,0 +1,99 @@
+{
+  "recording_date": "2026-10-13T08:21:58.188157",
+  "instance_type": "c7i-flex.large",
+  "account_label": "481374029754",
+  "region": "ap-south-1",
+  "experiments": [
+    {
+      "id": "demo_be8f26e7",
+      "name": "Faculty Demo: 3-Tenant Comparison with Burst",
+      "scenario_id": "demo_scenario",
+      "policies": [
+        "fcfs",
+        "proportional",
+        "adaptive"
+      ],
+      "repeats": 1,
+      "status": "pending",
+      "created_at": "2026-10-13T08:18:09.578773",
+      "completed_at": null,
+      "runs": []
+    },
+    {
+      "id": "demo_15820b8a",
+      "name": "Faculty Demo: 3-Tenant Comparison with Burst",
+      "scenario_id": "demo_scenario",
+      "policies": [
+        "fcfs",
+        "proportional",
+        "adaptive"
+      ],
+      "repeats": 1,
+      "status": "done",
+      "created_at": "2026-10-13T08:21:43.053705",
+      "completed_at": "2026-10-13T08:21:46.577389",
+      "runs": [
+        {
+          "id": "run_dae56d6f4785",
+          "policy": "adaptive",
+          "repeat_index": 0,
+          "status": "completed",
+          "is_valid": true,
+          "invalidation_reason": null,
+          "metrics": {
+            "jain_fairness_primary": 0.8501925336506236,
+            "jain_fairness_secondary": 0.8326674894575289,
+            "mean_satisfaction": 0.7417020833333333,
+            "allocated_util_cpu": 0.9995315000000005,
+            "allocated_util_mem": 1.0014722222222214,
+            "churn": 0.009300477011494248,
+            "changes_count": 17.0,
+            "guarantee_satisfaction_feasible": 1.0,
+            "guarantee_satisfaction_infeasible": 0.0,
+            "solve_ms_avg": 6.364516666666668
+          }
+        },
+        {
+          "id": "run_f638b30c3f65",
+          "policy": "fcfs",
+          "repeat_index": 0,
+          "status": "completed",
+          "is_valid": true,
+          "invalidation_reason": null,
+          "metrics": {
+            "jain_fairness_primary": 0.6666666666666666,
+            "jain_fairness_secondary": 0.7621522088541424,
+            "mean_satisfaction": 0.5,
+            "allocated_util_cpu": 0.9999999999999996,
+            "allocated_util_mem": 1.0,
+            "churn": 0.020689655172413796,
+            "changes_count": 3.0,
+            "guarantee_satisfaction_feasible": 0.8333333333333334,
+            "guarantee_satisfaction_infeasible": 0.0,
+            "solve_ms_avg": 0.05406999999999999
+          }
+        },
+        {
+          "id": "run_07fd2aa7513a",
+          "policy": "proportional",
+          "repeat_index": 0,
+          "status": "completed",
+          "is_valid": true,
+          "invalidation_reason": null,
+          "metrics": {
+            "jain_fairness_primary": 0.9823584029712165,
+            "jain_fairness_secondary": 0.9025954644465186,
+            "mean_satisfaction": 0.6157407407407408,
+            "allocated_util_cpu": 1.0,
+            "allocated_util_mem": 1.0,
+            "churn": 0.005517241379310347,
+            "changes_count": 3.0,
+            "guarantee_satisfaction_feasible": 1.0,
+            "guarantee_satisfaction_infeasible": 0.0,
+            "solve_ms_avg": 0.08169333333333334
+          }
+        }
+      ]
+    }
+  ]
+}

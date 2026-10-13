@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Experiment History - Alloc Platform{% endblock %}
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+  <h2>Experiment History & Report Exports</h2>
+  <p style="color: var(--text-secondary); font-size: 0.95rem;">Export complete data bundles in Markdown, CSV, and JSON formats.</p>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Experiment ID</th>
+        <th>Title</th>
+        <th>Scenario</th>
+        <th>Status</th>
+        <th>Completed At</th>
+        <th>Export Options</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for exp in experiments %}
+      <tr>
+        <td><code>{{ exp.id }}</code></td>
+        <td><strong>{{ exp.name }}</strong></td>
+        <td>{{ exp.scenario_id }}</td>
+        <td><span class="badge badge-measured">{{ exp.status }}</span></td>
+        <td>{{ exp.completed_at.strftime('%Y-%m-%d %H:%M') if exp.completed_at else '-' }}</td>
+        <td style="display: flex; gap: 0.5rem;">
+          <a href="/reports/{{ exp.id }}.json" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">JSON</a>
+          <a href="/reports/{{ exp.id }}.csv" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">CSV</a>
+          <a href="/reports/{{ exp.id }}.md" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Markdown</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="color: var(--text-secondary); text-align: center; padding: 2rem;">No previous experiment runs found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

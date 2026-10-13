@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Tenants - Alloc Platform{% endblock %}
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+  <div>
+    <h2>Tenant Resource Requirements & Guarantees</h2>
+    <p style="color: var(--text-secondary); font-size: 0.95rem;">Contending tenant specifications, weights, declared demands, and guaranteed minimums.</p>
+  </div>
+  <div>
+    <button class="btn btn-primary" onclick="document.getElementById('tenant-modal').style.display='block'">+ New Tenant</button>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Tenant Name</th>
+        <th>Type</th>
+        <th>Weight <span class="badge badge-configured">CONFIGURED</span></th>
+        <th>Priority <span class="badge badge-configured">CONFIGURED</span></th>
+        <th>Demand (CPU / RAM) <span class="badge badge-configured">CONFIGURED</span></th>
+        <th>Minimum Guarantee <span class="badge badge-configured">CONFIGURED</span></th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tenants %}
+      <tr>
+        <td><code>{{ t.id }}</code></td>
+        <td><strong>{{ t.name }}</strong></td>
+        <td><code>{{ t.workload_type }}</code></td>
+        <td>{{ t.weight }}</td>
+        <td>{{ t.priority }}</td>
+        <td>{{ t.demand_cpu }} cores / {{ t.demand_mem_mb }} MB</td>
+        <td>{{ t.min_cpu }} cores / {{ t.min_mem_mb }} MB</td>
+        <td>
+          <span class="badge {% if t.active %}badge-measured{% else %}badge-simulated{% endif %}">
+            {{ "Active" if t.active else "Disabled" }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Simple Create Tenant Modal -->
+<div id="tenant-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); padding: 2rem; z-index: 100;">
+  <div class="card" style="max-width: 500px; margin: 4rem auto;">
+    <h3 style="margin-bottom: 1rem;">Add New Tenant</h3>
+    <form hx-post="/api/v1/tenants" hx-swap="none" onsubmit="setTimeout(() => window.location.reload(), 300);">
+      <div class="form-group">
+        <label>Tenant ID</label>
+        <input type="text" name="id" required placeholder="tenant_new">
+      </div>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="New Microservice">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>Weight</label>
+          <input type="number" step="0.1" name="weight" value="1.0" required>
+        </div>
+        <div class="form-group">
+          <label>Priority (1-10)</label>
+          <input type="number" name="priority" value="1" min="1" max="10" required>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>Demand CPU (cores)</label>
+          <input type="number" step="0.05" name="demand_cpu" value="1.0" required>
+        </div>
+        <div class="form-group">
+          <label>Demand RAM (MB)</label>
+          <input type="number" name="demand_mem_mb" value="512.0" required>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>Minimum CPU (cores)</label>
+          <input type="number" step="0.05" name="min_cpu" value="0.2">
+        </div>
+        <div class="form-group">
+          <label>Minimum RAM (MB)</label>
+          <input type="number" name="min_mem_mb" value="128.0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Workload Profile</label>
+        <select name="workload_type">
+          <option value="mixed">Mixed (CPU + Memory)</option>
+          <option value="cpu_heavy">CPU Intensive (SHA-256)</option>
+          <option value="memory_heavy">Memory Intensive (Buffer)</option>
+        </select>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('tenant-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Tenant</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

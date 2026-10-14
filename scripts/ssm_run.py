@@ -30,19 +30,36 @@ def run_ssm(instance_id: str, commands: list[str], region: str = "ap-south-1") -
 
     command_id = res.stdout.strip()
 
-    wait_cmd = [
-        "aws",
-        "ssm",
-        "wait",
-        "command-executed",
-        "--command-id",
-        command_id,
-        "--instance-id",
-        instance_id,
-        "--region",
-        region,
-    ]
-    subprocess.run(wait_cmd)
+    import time
+
+    start_t = time.time()
+    max_timeout_s = 1800  # 30 minutes timeout
+    status = "Pending"
+    while time.time() - start_t < max_timeout_s:
+        chk_cmd = [
+            "aws",
+            "ssm",
+            "get-command-invocation",
+            "--command-id",
+            command_id,
+            "--instance-id",
+            instance_id,
+            "--region",
+            region,
+            "--output",
+            "json",
+        ]
+        chk_res = subprocess.run(chk_cmd, capture_output=True, text=True, encoding="utf-8")
+        if chk_res.returncode == 0:
+            try:
+                data = json.loads(chk_res.stdout)
+                status = data.get("Status", "Pending")
+                if status in ["Success", "Failed", "Cancelled", "TimedOut"]:
+                    break
+            except Exception:
+                pass
+        time.sleep(3)
+
 
     import os
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}

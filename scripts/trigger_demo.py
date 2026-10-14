@@ -14,18 +14,11 @@ from alloc_platform.orchestrator.runner import execute_experiment_async
 
 
 async def run_benchmark():
-    db = SessionLocal()
-    demo_exp_id = "faculty_demo_measured"
+    import uuid
 
-    existing = get_experiment_by_id(db, demo_exp_id)
-    if existing:
-        # Delete prior runs and metrics for clean rerun
-        runs = db.query(Run).filter(Run.experiment_id == demo_exp_id).all()
-        for r in runs:
-            db.query(RunMetric).filter(RunMetric.run_id == r.id).delete()
-            db.delete(r)
-        db.delete(existing)
-        db.commit()
+    db = SessionLocal()
+    demo_exp_id = f"faculty_demo_{uuid.uuid4().hex[:6]}"
+
 
     exp = Experiment(
         id=demo_exp_id,

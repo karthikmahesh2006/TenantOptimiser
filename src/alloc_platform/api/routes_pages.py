@@ -121,7 +121,7 @@ def page_console(request: Request, user: User = Depends(get_current_user)):
 @pages_router.get("/compare", response_class=HTMLResponse)
 def page_compare(
     request: Request,
-    experiment_id: Optional[str] = None,
+    experiment_id: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):

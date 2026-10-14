@@ -68,7 +68,9 @@ def deploy():
 
     print("=== [4/4] Smoke testing API status endpoint on EC2 ===")
     out_smoke, err_smoke, code_smoke = run_ssm(
-        IID, ["curl -s -f http://127.0.0.1:8000/api/v1/status"], region=REGION
+        IID,
+        ["curl --retry 5 --retry-connrefused --retry-delay 1 -s -f http://127.0.0.1:8000/api/v1/status"],
+        region=REGION,
     )
     print("Smoke Test Response:", out_smoke)
     if code_smoke != 0:

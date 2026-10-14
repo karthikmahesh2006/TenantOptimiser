@@ -16,18 +16,25 @@ from alloc_platform.db.models import (
 from alloc_platform.db.session import SessionLocal, init_db
 
 
-def export_bundle(output_path: str = "data/recorded_fallback.json") -> None:
+def export_bundle(
+    output_path: str = "data/recorded_fallback.json", experiment_id: str | None = None
+) -> None:
     init_db()
     db = SessionLocal()
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
     try:
-        experiments = db.query(Experiment).all()
+        if experiment_id:
+            experiments = db.query(Experiment).filter(Experiment.id == experiment_id).all()
+        else:
+            all_exps = db.query(Experiment).all()
+            experiments = [e for e in all_exps if e.id == "faculty_demo_measured"] or all_exps
         exp_list = []
         for e in experiments:
             runs = db.query(Run).filter(Run.experiment_id == e.id).all()
             run_list = []
             for r in runs:
+
                 metric_rows = db.query(RunMetric).filter(RunMetric.run_id == r.id).all()
                 metrics = {m.metric_name: m.metric_value for m in metric_rows}
                 # Determine provenance from metrics or default to SIMULATED
@@ -82,4 +89,6 @@ def export_bundle(output_path: str = "data/recorded_fallback.json") -> None:
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "data/recorded_fallback.json"
-    export_bundle(out)
+    exp_id = sys.argv[2] if len(sys.argv) > 2 else "faculty_demo_measured"
+    export_bundle(out, exp_id)
+

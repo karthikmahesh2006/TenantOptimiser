@@ -1,0 +1,94 @@
+{
+  "recording_date": "2026-10-14T14:32:09.569828",
+  "instance_type": "c7i-flex.large",
+  "account_label": "481374029754",
+  "region": "ap-south-1",
+  "provenance": "MEASURED",
+  "experiments": [
+    {
+      "id": "faculty_demo_measured",
+      "name": "Faculty Live Demo: 3-Tenant Comparison with Dynamic Burst",
+      "scenario_id": "demo_scenario",
+      "policies": [
+        "fcfs",
+        "proportional",
+        "adaptive"
+      ],
+      "repeats": 1,
+      "status": "done",
+      "created_at": "2026-10-14T14:29:31.762827",
+      "completed_at": "2026-10-14T14:31:11.256973",
+      "runs": [
+        {
+          "id": "run_22c847539afe",
+          "policy": "adaptive",
+          "repeat_index": 0,
+          "status": "completed",
+          "is_valid": true,
+          "invalidation_reason": null,
+          "provenance": "MEASURED",
+          "metrics": {
+            "jain_fairness_primary": 0.8501925336506236,
+            "jain_fairness_secondary": 0.8326674894575289,
+            "mean_satisfaction": 0.7417020833333333,
+            "allocated_util_cpu": 0.9995315000000005,
+            "allocated_util_mem": 0.999999999999999,
+            "consumed_util_cpu": 0.976253333333333,
+            "consumed_util_mem": 0.9333333333333329,
+            "churn": 0.007777488505747122,
+            "changes_count": 16.0,
+            "guarantee_satisfaction_feasible": 1.0,
+            "guarantee_satisfaction_infeasible": 0.0,
+            "solve_ms_avg": 2.0151966666666663
+          }
+        },
+        {
+          "id": "run_e80051264b0e",
+          "policy": "fcfs",
+          "repeat_index": 0,
+          "status": "completed",
+          "is_valid": true,
+          "invalidation_reason": null,
+          "provenance": "MEASURED",
+          "metrics": {
+            "jain_fairness_primary": 0.6666666666666666,
+            "jain_fairness_secondary": 0.7621522088541424,
+            "mean_satisfaction": 0.5,
+            "allocated_util_cpu": 0.9999999999999996,
+            "allocated_util_mem": 1.0,
+            "consumed_util_cpu": 0.8983333333333329,
+            "consumed_util_mem": 0.9333333333333329,
+            "churn": 0.020689655172413793,
+            "changes_count": 3.0,
+            "guarantee_satisfaction_feasible": 0.8333333333333334,
+            "guarantee_satisfaction_infeasible": 0.0,
+            "solve_ms_avg": 0.029573333333333333
+          }
+        },
+        {
+          "id": "run_30134e2c3a27",
+          "policy": "proportional",
+          "repeat_index": 0,
+          "status": "completed",
+          "is_valid": true,
+          "invalidation_reason": null,
+          "provenance": "MEASURED",
+          "metrics": {
+            "jain_fairness_primary": 0.9823584029712165,
+            "jain_fairness_secondary": 0.9025954644465186,
+            "mean_satisfaction": 0.6157407407407408,
+            "allocated_util_cpu": 1.0,
+            "allocated_util_mem": 1.0,
+            "consumed_util_cpu": 0.9576666666666663,
+            "consumed_util_mem": 0.9333333333333329,
+            "churn": 0.005517241379310347,
+            "changes_count": 3.0,
+            "guarantee_satisfaction_feasible": 1.0,
+            "guarantee_satisfaction_infeasible": 0.0,
+            "solve_ms_avg": 0.04071333333333333
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from alloc_platform.db.models import Experiment, Run, RunMetric
+from alloc_platform.db.repo import save_run_metrics
 from alloc_platform.db.session import SessionLocal, init_db
 
 
@@ -67,14 +68,8 @@ def import_bundle(input_path: str = "data/recorded_fallback.json") -> None:
                         is_valid=r_data.get("is_valid", True),
                     )
                     db.add(r)
-                    for k, v in r_data.get("metrics", {}).items():
-                        m = RunMetric(
-                            run_id=r_data["id"],
-                            metric_name=k,
-                            metric_value=float(v),
-                            provenance="MEASURED",
-                        )
-                        db.add(m)
+                    db.commit()
+                    save_run_metrics(db, r_data["id"], r_data.get("metrics", {}), default_provenance="MEASURED")
         db.commit()
 
         # Set fallback active flag

@@ -101,4 +101,16 @@ class CgroupReader:
             except Exception:
                 pass
 
+        stats["oom_kill"] = 0.0
+        mem_events_file = os.path.join(self._cgroup_path, "memory.events")
+        if os.path.isfile(mem_events_file):
+            try:
+                with open(mem_events_file, "r") as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) == 2 and parts[0] == "oom_kill":
+                            stats["oom_kill"] = float(parts[1])
+            except Exception:
+                pass
+
         return stats

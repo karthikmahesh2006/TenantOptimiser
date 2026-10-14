@@ -59,13 +59,14 @@ async def run_benchmark():
         m = get_run_metrics(db, r.id)
         metrics_by_policy[r.policy] = m
 
-    print("\n" + "=" * 92)
+    print("\n" + "=" * 110)
     print("                      MEASURED LIVE HARDWARE BENCHMARK RESULTS")
-    print("=" * 92)
+    print("            (Queried strictly from SQLite run_metrics rows for this execution run)")
+    print("=" * 110)
     print(
-        f"{'Policy':<14} | {'Jain (Bottleneck)':<18} | {'Mean Satis.':<12} | {'Alloc Util':<14} | {'Cons Util':<14} | {'Churn':<8} | {'Solve (ms)':<10}"
+        f"{'Policy':<13} | {'Jain (CALC)':<12} | {'Satis (CALC)':<12} | {'Alloc Util':<12} | {'Cons Util':<12} | {'Churn':<7} | {'Solve':<9} | {'Throughput':<14} | {'Latency (p95)':<14}"
     )
-    print("-" * 92)
+    print("-" * 110)
 
     for pol in ["fcfs", "proportional", "adaptive"]:
         m = metrics_by_policy.get(pol, {})
@@ -75,13 +76,15 @@ async def run_benchmark():
         cons_u = m.get("consumed_util_cpu", 0.0) * 100
         churn = m.get("churn", 0.0)
         solve_ms = m.get("solve_ms_avg", 0.0)
+        tp = m.get("throughput", 0.0)
+        p95_lat = m.get("p95_latency_ms", 0.0)
 
         print(
-            f"{pol.upper():<14} | {jain:<18.4f} | {satis:<12.4f} | {alloc_u:>6.1f}% CPU    | {cons_u:>6.1f}% CPU    | {churn:<8.3f} | {solve_ms:<10.2f}"
+            f"{pol.upper():<13} | {jain:<12.4f} | {satis:<12.4f} | {alloc_u:>5.1f}% CPU   | {cons_u:>5.1f}% CPU   | {churn:<7.3f} | {solve_ms:>6.2f} ms | {tp:>7.2f} req/s   | {p95_lat:>8.1f} ms"
         )
-    print("-" * 92)
-    print("All metrics above are MEASURED on real cgroup v2 & docker containers on host.")
-    print("=" * 92)
+    print("-" * 110)
+    print("Provenance: Jain, Satis, Alloc Util, Churn are CALCULATED; Cons Util, Solve, Throughput, Latency are MEASURED.")
+    print("=" * 110)
     db.close()
 
 

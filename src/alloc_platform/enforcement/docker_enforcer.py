@@ -37,9 +37,15 @@ class TenantContainerSpec:
 class DockerEnforcer:
     """Enforces resource allocation limits on real Docker containers via docker-socket-proxy."""
 
-    def __init__(self, docker_host: str | None = None) -> None:
+    def __init__(
+        self,
+        docker_host: str | None = None,
+        client: docker.DockerClient | None = None,
+    ) -> None:
         self.docker_host = docker_host or config.docker_host
-        if self.docker_host:
+        if client is not None:
+            self.client = client
+        elif self.docker_host:
             self.client = docker.DockerClient(base_url=self.docker_host)
         else:
             self.client = docker.from_env()

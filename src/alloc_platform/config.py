@@ -26,6 +26,10 @@ class PlatformConfig(BaseModel):
     max_cpu_steal_pct: float = 5.0
     min_cpu_credit_balance: float = 10.0
 
+    # Adaptive Allocator single-source constants
+    memory_safety_mb: float = 64.0
+    throttle_threshold: float = 0.05
+
     # Enforcement & Docker
     alloc_mode: str = Field(
         default_factory=lambda: os.getenv("ALLOC_MODE", "auto").lower()

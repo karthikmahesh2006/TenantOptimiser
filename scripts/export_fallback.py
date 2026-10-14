@@ -37,8 +37,16 @@ def export_bundle(
 
                 metric_rows = db.query(RunMetric).filter(RunMetric.run_id == r.id).all()
                 metrics = {m.metric_name: m.metric_value for m in metric_rows}
-                # Determine provenance from metrics or default to SIMULATED
-                run_prov = "MEASURED" if (metric_rows and all(m.provenance == "MEASURED" for m in metric_rows)) else "SIMULATED"
+                # Determine provenance from metrics: live runs have CALCULATED and MEASURED, simulated runs have SIMULATED
+                run_prov = (
+                    "MEASURED"
+                    if (
+                        metric_rows
+                        and all(m.provenance in ("MEASURED", "CALCULATED") for m in metric_rows)
+                        and any(m.provenance == "MEASURED" for m in metric_rows)
+                    )
+                    else "SIMULATED"
+                )
                 run_list.append(
                     {
                         "id": r.id,

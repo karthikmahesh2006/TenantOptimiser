@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 from alloc_platform.allocator.proportional import allocate_proportional
 from alloc_platform.allocator.types import Plan, Pool, Tenant, TenantObs
 from alloc_platform.allocator.validate import check_guarantee_feasibility, validate_inputs
+from alloc_platform.config import config
 
 
 @dataclass
@@ -23,8 +24,8 @@ class AdaptiveParams:
         deadband: Relative change threshold below which updates are suppressed.
         min_dwell_s: Minimum dwell time before voluntary limit reduction.
         max_shrink_per_epoch: Maximum fractional contraction per epoch.
-        memory_safety_mb: Margin in MB above current memory usage to prevent OOM.
-        throttle_threshold: Throttle ratio triggering fast-up demand escalation.
+        memory_safety_mb: Margin in MB above current memory usage to prevent OOM. Single-sourced from config.py.
+        throttle_threshold: Throttle ratio triggering fast-up demand escalation. Single-sourced from config.py.
         use_estimation: Ablation flag: whether to dynamically estimate demand.
         use_hysteresis: Ablation flag: whether to apply stability/churn filters.
         use_surplus: Ablation flag: whether to redistribute idle CPU to pressurized tenants.
@@ -37,8 +38,8 @@ class AdaptiveParams:
     deadband: float = 0.05
     min_dwell_s: float = 3.0
     max_shrink_per_epoch: float = 0.20
-    memory_safety_mb: float = 64.0
-    throttle_threshold: float = 0.05
+    memory_safety_mb: float = config.memory_safety_mb
+    throttle_threshold: float = config.throttle_threshold
     use_estimation: bool = True
     use_hysteresis: bool = True
     use_surplus: bool = True

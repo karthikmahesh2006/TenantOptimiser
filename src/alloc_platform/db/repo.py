@@ -1,6 +1,6 @@
 """Data access repositories for pools, tenants, scenarios, experiments, and metrics."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -117,15 +117,48 @@ def get_all_experiments(db: Session, limit: int = 20) -> List[Experiment]:
     return db.query(Experiment).order_by(Experiment.created_at.desc()).limit(limit).all()
 
 
+ALLOCATION_DERIVED_METRIC_PREFIXES = (
+    "jain_fairness",
+    "mean_satisfaction",
+    "unmet_demand",
+    "allocated_util",
+    "churn",
+    "changes_count",
+    "guarantee_satisfaction",
+)
+
+
+def is_allocation_derived(metric_name: str) -> bool:
+    return any(metric_name.startswith(p) for p in ALLOCATION_DERIVED_METRIC_PREFIXES)
+
+
 def get_run_metrics(db: Session, run_id: str) -> Dict[str, float]:
     metrics = db.query(RunMetric).filter(RunMetric.run_id == run_id).all()
     return {m.metric_name: m.metric_value for m in metrics}
 
 
+def get_run_metrics_detailed(db: Session, run_id: str) -> Dict[str, Dict[str, Any]]:
+    metrics = db.query(RunMetric).filter(RunMetric.run_id == run_id).all()
+    return {m.metric_name: {"value": m.metric_value, "provenance": m.provenance} for m in metrics}
+
+
 def save_run_metrics(
-    db: Session, run_id: str, metrics: Dict[str, float], provenance: str = "CALCULATED"
+    db: Session,
+    run_id: str,
+    metrics: Dict[str, Any],
+    default_provenance: str = "MEASURED",
 ) -> None:
     for k, v in metrics.items():
-        m = RunMetric(run_id=run_id, metric_name=k, metric_value=float(v), provenance=provenance)
+        if isinstance(v, (tuple, list)) and len(v) == 2:
+            val, prov = float(v[0]), str(v[1])
+        else:
+            val = float(v)
+            if default_provenance == "SIMULATED":
+                prov = "SIMULATED"
+            elif is_allocation_derived(k):
+                prov = "CALCULATED"
+            else:
+                prov = "MEASURED"
+        m = RunMetric(run_id=run_id, metric_name=k, metric_value=val, provenance=prov)
         db.add(m)
     db.commit()

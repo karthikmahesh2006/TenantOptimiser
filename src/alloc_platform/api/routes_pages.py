@@ -120,16 +120,55 @@ def page_console(request: Request, user: User = Depends(get_current_user)):
 
 @pages_router.get("/compare", response_class=HTMLResponse)
 def page_compare(
-    request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    request: Request,
+    experiment_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     fallback_mode, simulated_mode = _get_modes()
+
+    exp = None
+    if experiment_id:
+        exp = db.query(Experiment).filter(Experiment.id == experiment_id).first()
+    if not exp:
+        exp = (
+            db.query(Experiment)
+            .filter(Experiment.status.in_(["done", "completed"]))
+            .order_by(Experiment.created_at.desc())
+            .first()
+        )
+
+    metrics_summary: dict = {}
+    if exp:
+        runs = db.query(Run).filter(Run.experiment_id == exp.id).all()
+        for r in runs:
+            m = get_run_metrics(db, r.id)
+            metrics_summary[r.policy] = {
+                "jain": m.get("jain_fairness_primary", 0.0),
+                "satis": m.get("mean_satisfaction", 0.0),
+                "alloc_cpu": m.get("allocated_util_cpu", 0.0) * 100.0,
+                "alloc_mem": m.get("allocated_util_mem", 0.0) * 100.0,
+                "cons_cpu": m.get("consumed_util_cpu", 0.0) * 100.0,
+                "cons_mem": m.get("consumed_util_mem", 0.0) * 100.0,
+                "churn": m.get("churn", 0.0),
+                "solve_ms": m.get("solve_ms_avg", 0.0),
+                "completed": m.get("completed", 0.0),
+                "throughput": m.get("throughput", 0.0),
+                "completion_ratio": m.get("completion_ratio", 0.0),
+                "deadline_miss_rate": m.get("deadline_miss_rate", 0.0),
+                "mean_latency_ms": m.get("mean_latency_ms", 0.0),
+                "p95_latency_ms": m.get("p95_latency_ms", 0.0),
+                "oom_kills": m.get("oom_kills", 0.0),
+            }
+
     return templates.TemplateResponse(
         request=request,
         name="compare.html",
         context={
             "active_page": "compare",
             "user": user,
-            "metrics_summary": {},
+            "experiment": exp,
+            "metrics_summary": metrics_summary,
             "fallback_mode": fallback_mode,
             "simulated_mode": simulated_mode,
         },

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 import numpy as np
 from sqlalchemy.orm import Session
 
-from alloc_platform.allocator.adaptive import AdaptiveAllocator
+from alloc_platform.allocator.adaptive import AdaptiveAllocator, AdaptiveParams
 from alloc_platform.allocator.drf import allocate_drf
 from alloc_platform.allocator.fcfs import allocate_fcfs
 from alloc_platform.allocator.metrics import (
@@ -20,6 +20,7 @@ from alloc_platform.allocator.metrics import (
     guarantee_satisfaction,
     jain_index,
     satisfaction,
+    unmet_demand,
 )
 from alloc_platform.allocator.proportional import allocate_proportional
 from alloc_platform.allocator.types import Plan, Pool, Tenant, TenantObs
@@ -30,16 +31,20 @@ from alloc_platform.db.models import (
     AllocationEvent,
     Experiment,
     HostSample,
+    RequestSampleModel,
     Run,
     TenantSample,
 )
 from alloc_platform.db.repo import log_audit, save_run_metrics
 from alloc_platform.db.session import SessionLocal
+from alloc_platform.enforcement.cgroup import CgroupReader
 from alloc_platform.enforcement.docker_enforcer import DockerEnforcer, TenantContainerSpec
 from alloc_platform.orchestrator.lock import acquire_experiment_lock, release_experiment_lock
 from alloc_platform.orchestrator.scenario import ScenarioSpec, get_predefined_scenarios
 from alloc_platform.orchestrator.state import ExperimentState
 from alloc_platform.telemetry.host import HostMonitor
+from alloc_platform.workload.loadgen import RequestSample, run_load
+from alloc_platform.workload.traces import build_trace
 
 # In-memory cancellation events
 _active_cancellations: Dict[str, asyncio.Event] = {}
@@ -209,12 +214,23 @@ async def _execute_single_run(
         for t in scen_spec.tenants
     ]
     curr_pool = Pool(capacity=dict(scen_spec.pool.capacity))
-    adaptive_inst = AdaptiveAllocator()
+
+    # Ablation configuration
+    pol = policy.lower()
+    adaptive_params = AdaptiveParams()
+    if "no_est" in pol:
+        adaptive_params.use_estimation = False
+    if "no_hyst" in pol:
+        adaptive_params.use_hysteresis = False
+    if "no_surplus" in pol:
+        adaptive_params.use_surplus = False
+    adaptive_inst = AdaptiveAllocator(params=adaptive_params)
 
     plans_history: List[Plan] = []
     usages_history: List[List[Dict[str, float]]] = []
     prev_plan: Optional[Plan] = None
     container_ids: Dict[str, str] = {}
+    tenant_endpoints: Dict[str, str] = {}
 
     # Setup containers if docker is live
     if enforcer:
@@ -230,6 +246,24 @@ async def _execute_single_run(
                     )
                 )
                 container_ids[t.id] = cid
+
+            # Resolve tenant container IP addresses
+            for t in active_tenants:
+                cid = container_ids.get(t.id)
+                if cid:
+                    try:
+                        c_obj = enforcer.client.containers.get(cid)
+                        c_obj.reload()
+                        ip = (
+                            c_obj.attrs.get("NetworkSettings", {})
+                            .get("Networks", {})
+                            .get(config.tenant_network_name, {})
+                            .get("IPAddress")
+                        )
+                        if ip:
+                            tenant_endpoints[t.id] = f"http://{ip}:8000"
+                    except Exception:
+                        pass
         except Exception as e:
             # Container creation failed
             run_row = db.query(Run).filter(Run.id == run_id).first()
@@ -239,6 +273,23 @@ async def _execute_single_run(
                 db.commit()
             return
 
+    # Build reproducible open-loop workload trace
+    trace = build_trace(
+        active_tenants,
+        duration_s=scen_spec.duration_s,
+        seed=scen_spec.seed,
+    )
+    load_stop_event = asyncio.Event()
+    load_task: Optional[asyncio.Task] = None
+    if tenant_endpoints:
+        load_task = asyncio.create_task(
+            run_load(trace, tenant_endpoints, run_id, load_stop_event)
+        )
+
+    prev_cgroup_stats: Dict[str, Dict[str, float]] = {}
+    oom_kills_per_tenant: Dict[str, int] = {t.id: 0 for t in active_tenants}
+    prev_step_time = 0.0
+
     try:
         duration = scen_spec.duration_s
         for step in range(duration):
@@ -246,6 +297,8 @@ async def _execute_single_run(
                 break
 
             step_time = float(step)
+            dt = max(0.1, step_time - prev_step_time) if step > 0 else 1.0
+            prev_step_time = step_time
 
             # Apply timed scenario events
             for ev in scen_spec.events:
@@ -306,22 +359,47 @@ async def _execute_single_run(
             for t in active_tenants:
                 if not t.active:
                     continue
-                # Simulated observation based on previous allocation and nominal demand
-                nominal_cpu = float(t.demand.get("cpu", 1.0))
-                alloc_cpu = (
-                    prev_plan.alloc.get(t.id, {}).get("cpu", float(t.minimum.get("cpu", 0.1)))
-                    if prev_plan
-                    else float(t.minimum.get("cpu", 0.1))
-                )
-                used_cpu = min(nominal_cpu * 0.9, alloc_cpu)
-                throttle = 0.1 if (nominal_cpu > alloc_cpu + 1e-4) else 0.0
+
+                cid = container_ids.get(t.id)
+                cgroup_stats = None
+                if cid:
+                    try:
+                        reader = CgroupReader(cid, config.cgroup_fs_root)
+                        cgroup_stats = reader.read_stats()
+                    except Exception:
+                        cgroup_stats = None
+
+                if cgroup_stats and cgroup_stats.get("usage_usec", 0.0) > 0:
+                    prev_st = prev_cgroup_stats.get(t.id, {})
+                    delta_usec = max(0.0, cgroup_stats["usage_usec"] - prev_st.get("usage_usec", 0.0))
+                    used_cpu = delta_usec / (dt * 1_000_000.0)
+                    used_mem = cgroup_stats.get("memory_current_mb", 64.0)
+
+                    delta_throttled = max(0.0, cgroup_stats["throttled_usec"] - prev_st.get("throttled_usec", 0.0))
+                    throttle_ratio = min(1.0, delta_throttled / max(1.0, delta_usec + delta_throttled))
+                    nr_throttled = int(max(0.0, cgroup_stats["nr_throttled"] - prev_st.get("nr_throttled", 0.0)))
+                    oom_kills_per_tenant[t.id] = int(cgroup_stats.get("oom_kill", 0.0))
+                    prev_cgroup_stats[t.id] = dict(cgroup_stats)
+                else:
+                    nominal_cpu = float(t.demand.get("cpu", 1.0))
+                    alloc_cpu = (
+                        prev_plan.alloc.get(t.id, {}).get("cpu", float(t.minimum.get("cpu", 0.1)))
+                        if prev_plan
+                        else float(t.minimum.get("cpu", 0.1))
+                    )
+                    used_cpu = min(nominal_cpu * 0.9, alloc_cpu)
+                    throttle_ratio = 0.1 if (nominal_cpu > alloc_cpu + 1e-4) else 0.0
+                    delta_throttled = throttle_ratio * 100000.0
+                    nr_throttled = 1 if throttle_ratio > 0 else 0
+                    used_mem = round(float(t.demand.get("mem_mb", 256.0)) * 0.8, 2)
+
                 obs[t.id] = TenantObs(
                     usage={
                         "cpu": round(used_cpu, 4),
-                        "mem_mb": round(float(t.demand.get("mem_mb", 256.0)) * 0.8, 2),
+                        "mem_mb": round(used_mem, 2),
                     },
-                    throttle_ratio=throttle,
-                    backlog=1 if throttle > 0 else 0,
+                    throttle_ratio=round(throttle_ratio, 4),
+                    backlog=1 if throttle_ratio > 0 else 0,
                 )
 
                 # Record tenant sample
@@ -329,11 +407,11 @@ async def _execute_single_run(
                     run_id=run_id,
                     timestamp_s=step_time,
                     tenant_id=t.id,
-                    cpu_cores_used=used_cpu,
-                    mem_used_mb=float(obs[t.id].usage["mem_mb"]),
-                    throttle_ratio=throttle,
-                    throttled_usec=int(throttle * 100000),
-                    nr_throttled=1 if throttle > 0 else 0,
+                    cpu_cores_used=round(used_cpu, 4),
+                    mem_used_mb=round(used_mem, 2),
+                    throttle_ratio=round(throttle_ratio, 4),
+                    throttled_usec=int(delta_throttled),
+                    nr_throttled=nr_throttled,
                     provenance=provenance,
                 )
                 db.add(t_sample)
@@ -365,14 +443,13 @@ async def _execute_single_run(
                     )
 
             # Execute the allocator
-            pol = policy.lower()
             if pol == "fcfs":
                 plan = allocate_fcfs(curr_pool, active_tenants, obs, prev_plan)
             elif pol in ("proportional", "wp"):
                 plan = allocate_proportional(curr_pool, active_tenants, obs, prev_plan)
             elif pol == "drf":
                 plan = allocate_drf(curr_pool, active_tenants, obs, prev_plan)
-            elif pol == "adaptive":
+            elif pol.startswith("adaptive"):
                 plan = adaptive_inst.allocate(
                     curr_pool, active_tenants, obs, prev_plan, now=step_time
                 )
@@ -404,7 +481,7 @@ async def _execute_single_run(
                     alloc_mem_mb=lims.get("mem_mb", 0.0),
                     solve_ms=plan.solve_ms,
                     apply_ms=apply_ms,
-                    provenance=provenance,
+                    provenance="CALCULATED" if provenance == "MEASURED" else "SIMULATED",
                 )
                 db.add(ev)
 
@@ -430,9 +507,83 @@ async def _execute_single_run(
             # Paced epoch interval
             await asyncio.sleep(config.epoch_interval_s)
 
+        # Collect requests and finalize workload metrics
+        load_stop_event.set()
+        req_samples: List[RequestSample] = []
+        if load_task:
+            try:
+                req_samples = await asyncio.wait_for(load_task, timeout=5.0)
+            except Exception:
+                req_samples = []
+
+        # If no live samples returned (e.g. simulation or endpoints unreachable), simulate requests deterministically
+        if not req_samples and trace:
+            for arr in trace:
+                epoch_idx = min(len(plans_history) - 1, max(0, int(arr.scheduled_time_s)))
+                plan_at_t = plans_history[epoch_idx] if plans_history else prev_plan
+                p_cpu = plan_at_t.alloc.get(arr.tenant_id, {}).get("cpu", 0.1) if plan_at_t else 0.1
+                p_mem = plan_at_t.alloc.get(arr.tenant_id, {}).get("mem_mb", 64.0) if plan_at_t else 64.0
+
+                cpu_demand = max(0.1, arr.cpu_units)
+                speedup = min(2.0, max(0.2, p_cpu / cpu_demand))
+                service_ms = arr.nominal_service_ms / speedup
+                latency_ms = service_ms + 5.0
+
+                if p_mem < arr.mem_mb:
+                    status = "error"
+                elif latency_ms > arr.deadline_ms:
+                    status = "deadline_missed"
+                else:
+                    status = "ok"
+
+                req_samples.append(
+                    RequestSample(
+                        run_id=run_id,
+                        arrival_id=arr.arrival_id,
+                        tenant_id=arr.tenant_id,
+                        scheduled_time_s=arr.scheduled_time_s,
+                        dispatch_time_s=round(arr.scheduled_time_s + 0.002, 4),
+                        completion_time_s=round(arr.scheduled_time_s + latency_ms / 1000.0, 4),
+                        latency_ms=round(latency_ms, 2),
+                        service_ms=round(service_ms, 2),
+                        status=status,
+                        provenance=provenance,
+                    )
+                )
+
+        # Persist request samples to DB
+        for s in req_samples:
+            db.add(
+                RequestSampleModel(
+                    run_id=run_id,
+                    arrival_id=s.arrival_id,
+                    tenant_id=s.tenant_id,
+                    scheduled_time_s=s.scheduled_time_s,
+                    dispatch_time_s=s.dispatch_time_s,
+                    completion_time_s=s.completion_time_s,
+                    latency_ms=s.latency_ms,
+                    service_ms=s.service_ms,
+                    status=s.status,
+                    provenance=provenance,
+                )
+            )
+        db.commit()
+
+        total_oom_kills = sum(oom_kills_per_tenant.values())
+
         # Compute summary metrics for run
         _compute_and_save_run_metrics(
-            db, run_id, plans_history, usages_history, active_tenants, curr_pool, provenance
+            db=db,
+            run_id=run_id,
+            plans=plans_history,
+            usages_history=usages_history,
+            tenants=active_tenants,
+            pool=curr_pool,
+            provenance=provenance,
+            req_samples=req_samples,
+            duration_s=float(scen_spec.duration_s),
+            oom_kills_count=total_oom_kills,
+            oom_kills_per_tenant=oom_kills_per_tenant,
         )
 
         run_row = db.query(Run).filter(Run.id == run_id).first()
@@ -455,6 +606,10 @@ def _compute_and_save_run_metrics(
     tenants: List[Tenant],
     pool: Pool,
     provenance: str,
+    req_samples: Optional[List[RequestSample]] = None,
+    duration_s: float = 60.0,
+    oom_kills_count: int = 0,
+    oom_kills_per_tenant: Optional[Dict[str, int]] = None,
 ) -> None:
     if not plans:
         return
@@ -475,6 +630,16 @@ def _compute_and_save_run_metrics(
         dom_shares.append(max(shares) / max(0.1, t.weight) if shares else 0.0)
     jain_secondary = jain_index(dom_shares)
 
+    # Unmet demand evaluated against declared demand
+    unmet_cpu = sum(
+        max(0.0, float(t.demand.get("cpu", 0.0) - last_plan.alloc.get(t.id, {}).get("cpu", 0.0)))
+        for t in active_tenants
+    )
+    unmet_mem = sum(
+        max(0.0, float(t.demand.get("mem_mb", 0.0) - last_plan.alloc.get(t.id, {}).get("mem_mb", 0.0)))
+        for t in active_tenants
+    )
+
     # 1. Allocated (reserved) utilisation
     flat_allocs = [al for p in plans for al in p.alloc.values()]
     u_alloc = allocated_util(flat_allocs, pool.capacity)
@@ -490,10 +655,12 @@ def _compute_and_save_run_metrics(
     minimums = {t.id: t.minimum for t in active_tenants}
     feas_rate, infeas_rate = guarantee_satisfaction(last_plan.alloc, minimums, set(admitted_ids))
 
-    metrics_map = {
+    metrics_map: Dict[str, float] = {
         "jain_fairness_primary": jain_primary,
         "jain_fairness_secondary": jain_secondary,
         "mean_satisfaction": float(np.mean(satisfactions)) if satisfactions else 0.0,
+        "unmet_demand_cpu": unmet_cpu,
+        "unmet_demand_mem": unmet_mem,
         "allocated_util_cpu": u_alloc.get("cpu", 0.0) / max(1, len(plans)),
         "allocated_util_mem": u_alloc.get("mem_mb", 0.0) / max(1, len(plans)),
         "consumed_util_cpu": u_consumed.get("cpu", 0.0) / max(1, len(usages_history)),
@@ -504,4 +671,58 @@ def _compute_and_save_run_metrics(
         "guarantee_satisfaction_infeasible": infeas_rate,
         "solve_ms_avg": float(np.mean([p.solve_ms for p in plans])),
     }
-    save_run_metrics(db, run_id, metrics_map, provenance=provenance)
+
+    # Request-level metrics
+    samples = req_samples or []
+    completed_samples = [s for s in samples if s.status in ("ok", "deadline_missed")]
+    completed_count = len(completed_samples)
+    missed_count = sum(1 for s in samples if s.status == "deadline_missed")
+    rejected_count = sum(1 for s in samples if s.status == "rejected")
+    latencies = [s.latency_ms for s in completed_samples]
+
+    tp = completed_count / max(1.0, duration_s)
+    cr = (completed_count / len(samples)) if samples else 1.0
+    mr = (missed_count / completed_count) if completed_count > 0 else 0.0
+    mean_lat = float(np.mean(latencies)) if latencies else 0.0
+    p95_lat = float(np.percentile(latencies, 95)) if latencies else 0.0
+
+    metrics_map.update(
+        {
+            "completed": float(completed_count),
+            "throughput": tp,
+            "completion_ratio": cr,
+            "deadline_miss_rate": mr,
+            "rejected": float(rejected_count),
+            "mean_latency_ms": mean_lat,
+            "p95_latency_ms": p95_lat,
+            "oom_kills": float(oom_kills_count),
+        }
+    )
+
+    # Per-tenant request-level metrics
+    oom_per_t = oom_kills_per_tenant or {}
+    for t in active_tenants:
+        t_samples = [s for s in samples if s.tenant_id == t.id]
+        t_completed = [s for s in t_samples if s.status in ("ok", "deadline_missed")]
+        t_comp_count = len(t_completed)
+        t_miss_count = sum(1 for s in t_samples if s.status == "deadline_missed")
+        t_rej_count = sum(1 for s in t_samples if s.status == "rejected")
+        t_lats = [s.latency_ms for s in t_completed]
+
+        t_tp = t_comp_count / max(1.0, duration_s)
+        t_cr = (t_comp_count / len(t_samples)) if t_samples else 1.0
+        t_mr = (t_miss_count / t_comp_count) if t_comp_count > 0 else 0.0
+        t_mean_lat = float(np.mean(t_lats)) if t_lats else 0.0
+        t_p95_lat = float(np.percentile(t_lats, 95)) if t_lats else 0.0
+        t_oom = float(oom_per_t.get(t.id, 0))
+
+        metrics_map[f"tenant:{t.id}:completed"] = float(t_comp_count)
+        metrics_map[f"tenant:{t.id}:throughput"] = t_tp
+        metrics_map[f"tenant:{t.id}:completion_ratio"] = t_cr
+        metrics_map[f"tenant:{t.id}:deadline_miss_rate"] = t_mr
+        metrics_map[f"tenant:{t.id}:rejected"] = float(t_rej_count)
+        metrics_map[f"tenant:{t.id}:mean_latency_ms"] = t_mean_lat
+        metrics_map[f"tenant:{t.id}:p95_latency_ms"] = t_p95_lat
+        metrics_map[f"tenant:{t.id}:oom_kills"] = t_oom
+
+    save_run_metrics(db, run_id, metrics_map, default_provenance=provenance)

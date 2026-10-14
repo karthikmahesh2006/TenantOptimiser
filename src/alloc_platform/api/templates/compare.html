@@ -60,48 +60,31 @@
         <th>Jain Fairness (Primary)<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Satisfaction / Weight</span> <span class="badge badge-calculated">CALCULATED</span></th>
         <th>Mean Satisfaction<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Denominator: Declared Demand</span> <span class="badge badge-calculated">CALCULATED</span></th>
         <th>Allocated Utilisation<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU / RAM Reserved</span> <span class="badge badge-calculated">CALCULATED</span></th>
-        <th>Consumed Utilisation<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU / RAM Active</span> <span class="badge badge-calculated">CALCULATED</span></th>
+        <th>Consumed Utilisation<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU / RAM Active</span> <span class="badge badge-measured">MEASURED</span></th>
         <th>Allocation Churn <span class="badge badge-calculated">CALCULATED</span></th>
         <th>Avg Solve Time <span class="badge badge-measured">MEASURED</span></th>
+        <th>Throughput <span class="badge badge-measured">MEASURED</span></th>
+        <th>Latency (Mean / p95) <span class="badge badge-measured">MEASURED</span></th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td><strong>First-Come, First-Served (FCFS)</strong></td>
-        <td>0.667 ± 0.030</td>
-        <td>0.500</td>
-        <td>100.0% / 100.0%</td>
-        <td>73.5% / 68.2%</td>
-        <td>0.021</td>
-        <td>0.05 ms</td>
-      </tr>
-      <tr>
-        <td><strong>Weighted Proportional (WP)</strong></td>
-        <td>0.982 ± 0.015</td>
-        <td>0.616</td>
-        <td>100.0% / 100.0%</td>
-        <td>81.2% / 75.0%</td>
-        <td>0.006</td>
-        <td>0.08 ms</td>
-      </tr>
-      <tr>
-        <td><strong>Dominant Resource Fairness (DRF)</strong></td>
-        <td>0.912 ± 0.018</td>
-        <td>0.645</td>
-        <td>96.0% / 88.0%</td>
-        <td>79.5% / 74.0%</td>
-        <td>0.008</td>
-        <td>1.15 ms</td>
-      </tr>
-      <tr style="background: rgba(56, 189, 248, 0.05); font-weight: 600;">
-        <td style="color: var(--accent-blue);"><strong>Adaptive Optimizer (Proposed)</strong></td>
-        <td style="color: var(--accent-green);">0.850 ± 0.020</td>
-        <td style="color: var(--accent-green);">0.742 (+20.5% vs WP)</td>
-        <td>99.9% / 100.0%</td>
-        <td>92.4% / 86.5%</td>
-        <td>0.009 (Controlled)</td>
-        <td>6.36 ms (&lt;50ms)</td>
-      </tr>
+      {% if metrics_summary %}
+        {% for pol, m in metrics_summary.items() %}
+        <tr {% if pol.startswith('adaptive') %}style="background: rgba(56, 189, 248, 0.05); font-weight: 600;"{% endif %}>
+          <td><strong>{{ pol.upper() }}</strong></td>
+          <td>{{ "%.4f"|format(m.jain) }}</td>
+          <td>{{ "%.4f"|format(m.satis) }}</td>
+          <td>{{ "%.1f"|format(m.alloc_cpu) }}% / {{ "%.1f"|format(m.alloc_mem) }}%</td>
+          <td>{{ "%.1f"|format(m.cons_cpu) }}% / {{ "%.1f"|format(m.cons_mem) }}%</td>
+          <td>{{ "%.4f"|format(m.churn) }}</td>
+          <td>{{ "%.2f"|format(m.solve_ms) }} ms</td>
+          <td>{{ "%.2f"|format(m.throughput) }} req/s</td>
+          <td>{{ "%.1f"|format(m.mean_latency_ms) }} / {{ "%.1f"|format(m.p95_latency_ms) }} ms</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 1.5rem;">No completed experiment benchmarks found in database. Run a live demo or scenario benchmark to view results.</td></tr>
+      {% endif %}
     </tbody>
   </table>
 </div>

@@ -88,12 +88,12 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
     # Scenario 2: Flash Crowd / Dynamic Burst
     scen2_events = [
         TimedEvent(
-            t_sec=20,
+            t_sec=10,
             event_type="set_demand",
             params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.8, "mem_mb": 512.0}},
         ),
         TimedEvent(
-            t_sec=40,
+            t_sec=20,
             event_type="set_demand",
             params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.2, "mem_mb": 512.0}},
         ),
@@ -102,27 +102,27 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
     # Scenario 3: Host Capacity Degradation / Cut
     scen3_events = [
         TimedEvent(
-            t_sec=25, event_type="set_capacity", params={"capacity": {"cpu": 1.2, "mem_mb": 2048.0}}
+            t_sec=15, event_type="set_capacity", params={"capacity": {"cpu": 1.2, "mem_mb": 2048.0}}
         ),
     ]
 
     # Scenario 4: Dynamic Tenant Arrival and Departure
     scen4_events = [
-        TimedEvent(t_sec=15, event_type="tenant_arrive", params={"tenant_id": "tenant_mix"}),
-        TimedEvent(t_sec=45, event_type="tenant_leave", params={"tenant_id": "tenant_mix"}),
+        TimedEvent(t_sec=10, event_type="tenant_arrive", params={"tenant_id": "tenant_mix"}),
+        TimedEvent(t_sec=20, event_type="tenant_leave", params={"tenant_id": "tenant_mix"}),
     ]
 
     return {
         "scenario_1_baseline": ScenarioSpec(
             name="Scenario 1: Heterogeneous Workload Baseline",
-            duration_s=60,
+            duration_s=30,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
         ),
         "scenario_2_burst": ScenarioSpec(
             name="Scenario 2: Flash Crowd Workload Burst",
-            duration_s=60,
+            duration_s=30,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
@@ -130,7 +130,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "scenario_3_capacity_cut": ScenarioSpec(
             name="Scenario 3: Physical Capacity Cut Under Contention",
-            duration_s=60,
+            duration_s=30,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
@@ -138,7 +138,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "scenario_4_churn": ScenarioSpec(
             name="Scenario 4: Tenant Churn & Dynamic Arrival",
-            duration_s=60,
+            duration_s=30,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,

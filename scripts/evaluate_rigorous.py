@@ -150,42 +150,64 @@ def print_comparison_table(scenario_name: str, analysis: Dict[str, Any]):
 
 
 async def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Rigorous Evaluation Suite")
+    parser.add_argument(
+        "--scenario",
+        type=str,
+        default=None,
+        help="Specific scenario ID to run (e.g. scenario_1_baseline, scenario_2_burst, scenario_3_capacity_cut, scenario_4_churn)",
+    )
+    parser.add_argument("--repeats", type=int, default=5, help="Number of repeats per policy (default: 5)")
+    parser.add_argument("--ablations", action="store_true", help="Run Adaptive ablation study on Scenario 2")
+    parser.add_argument("--analyze-only", type=str, default=None, help="Analyze and print existing experiment ID")
+    args = parser.parse_args()
+
+    if args.analyze_only:
+        analysis = analyze_experiment(args.analyze_only)
+        print_comparison_table(f"Experiment {args.analyze_only}", analysis)
+        return
+
     print("=" * 120)
     print("         ADAPTIVE PLATFORM COMPREHENSIVE EMPIRICAL EVALUATION SUITE")
-    print("         Scenarios 1-4 (5 repeats each) + Same-Policy Noise Floor + Ablations")
+    print(f"         Repeats: {args.repeats} per policy | Noise Floor Included | Strict DB Provenance")
     print("=" * 120)
 
     scenarios = get_predefined_scenarios()
     policies_core = ["fcfs", "proportional", "drf", "adaptive", "adaptive_noise"]
 
-    results = {}
+    if args.ablations:
+        print("\n" + "=" * 120)
+        print("  RUNNING ADAPTIVE ABLATIONS ON SCENARIO 2 (BURST)")
+        print("=" * 120)
+        ablation_policies = ["adaptive", "adaptive_no_est", "adaptive_no_hyst", "adaptive_no_surplus"]
+        abl_exp_id = await run_scenario_benchmark(
+            "scenario_2_burst",
+            ablation_policies,
+            repeats=args.repeats,
+            exp_name="Adaptive Ablation Study: Burst Workload",
+        )
+        abl_analysis = analyze_experiment(abl_exp_id)
+        print_comparison_table("Adaptive Ablation Study (Scenario 2 Burst)", abl_analysis)
+        return
 
-    # Run Scenarios 1 to 4
-    scen_keys = ["scenario_1_baseline", "scenario_2_burst", "scenario_3_capacity_cut", "scenario_4_churn"]
+    scen_keys = [args.scenario] if args.scenario else [
+        "scenario_1_baseline",
+        "scenario_2_burst",
+        "scenario_3_capacity_cut",
+        "scenario_4_churn",
+    ]
+
     for sk in scen_keys:
         if sk in scenarios:
-            exp_id = await run_scenario_benchmark(sk, policies_core, repeats=5)
+            exp_id = await run_scenario_benchmark(sk, policies_core, repeats=args.repeats)
             analysis = analyze_experiment(exp_id)
             print_comparison_table(scenarios[sk].name, analysis)
-            results[sk] = analysis
 
-    # Run Adaptive Ablations on Scenario 2 (Burst)
-    print("\n" + "=" * 120)
-    print("  RUNNING ADAPTIVE ABLATIONS ON SCENARIO 2 (BURST)")
-    print("=" * 120)
-    ablation_policies = ["adaptive", "adaptive_no_est", "adaptive_no_hyst", "adaptive_no_surplus"]
-    abl_exp_id = await run_scenario_benchmark(
-        "scenario_2_burst",
-        ablation_policies,
-        repeats=5,
-        exp_name="Adaptive Ablation Study: Burst Workload",
-    )
-    abl_analysis = analyze_experiment(abl_exp_id)
-    print_comparison_table("Adaptive Ablation Study (Scenario 2 Burst)", abl_analysis)
-    results["ablations"] = abl_analysis
-
-    print("\nEvaluation suite completed successfully. All data queried from SQLite DB rows.")
+    print("\nEvaluation completed successfully. All data queried from SQLite DB rows.")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+

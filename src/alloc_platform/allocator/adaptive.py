@@ -328,18 +328,30 @@ class AdaptiveAllocator:
             ):
                 pressured.append(t)
 
-        if not pressured:
-            return
-
-        total_weight = sum(t.weight for t in pressured)
-        if total_weight <= 1e-9:
-            return
-
-        for t in pressured:
-            share = surplus_cpu * (t.weight / total_weight)
-            dem = float(t.demand.get("cpu", 0.0))
-            current = alloc[t.id].get("cpu", 0.0)
-            alloc[t.id]["cpu"] = round(min(dem, current + share), 6)
+        # Multi-pass iterative surplus redistribution
+        while surplus_cpu > 1e-4:
+            pressured_available = [
+                t
+                for t in pressured
+                if alloc[t.id].get("cpu", 0.0) < float(t.demand.get("cpu", 0.0)) - 1e-4
+            ]
+            if not pressured_available:
+                break
+            total_w = sum(t.weight for t in pressured_available)
+            if total_w <= 1e-9:
+                break
+            allocated_any = False
+            for t in pressured_available:
+                share = surplus_cpu * (t.weight / total_w)
+                dem = float(t.demand.get("cpu", 0.0))
+                current = alloc[t.id].get("cpu", 0.0)
+                add_cpu = min(share, dem - current)
+                if add_cpu > 1e-6:
+                    alloc[t.id]["cpu"] = round(current + add_cpu, 6)
+                    surplus_cpu -= add_cpu
+                    allocated_any = True
+            if not allocated_any:
+                break
 
     def stability_filter(
         self,
@@ -355,7 +367,8 @@ class AdaptiveAllocator:
         Guarantees:
         - Memory limit never set below current usage + memory_safety_mb.
         - Rate limits capacity contraction to max_shrink_per_epoch.
-        - Suppresses updates within deadband unless dwell time elapsed or constraints require it.
+        - Suppresses updates within deadband unless dwell time elapsed, constraints require it,
+          or a throttled tenant requires immediate capacity expansion.
         - Pool capacity invariant strictly preserved.
         """
         active_tenants = [t for t in tenants if t.active]
@@ -383,14 +396,29 @@ class AdaptiveAllocator:
 
                 dwell = now - self.last_change_time.get(tid, 0.0)
                 is_material_change = False
+                t_obs = obs.get(tid) if obs else None
+                is_throttled = bool(
+                    t_obs
+                    and (
+                        t_obs.throttle_ratio > self.params.throttle_threshold
+                        or t_obs.backlog > 0
+                    )
+                )
 
                 for res, cap in pool.capacity.items():
                     p_val = prev_t.get(res, 0.0)
                     n_val = filtered[tid].get(res, p_val)
                     rel_change = abs(n_val - p_val) / max(cap, 1e-6)
 
+                    # Upward expansions for throttled tenants bypass deadband and dwell suppression
+                    bypass_suppression = is_throttled and (n_val > p_val + 1e-6)
+
                     # Check deadband and dwell
-                    if rel_change <= self.params.deadband and dwell < self.params.min_dwell_s:
+                    if (
+                        rel_change <= self.params.deadband
+                        and dwell < self.params.min_dwell_s
+                        and not bypass_suppression
+                    ):
                         # Keep previous value
                         filtered[tid][res] = p_val
                     else:

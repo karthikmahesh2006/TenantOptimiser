@@ -105,3 +105,43 @@ def test_adaptive_solve_time_10_tenants_gate1():
     mean_time_ms = sum(times) / len(times)
     # Gate 1 benchmark
     assert mean_time_ms < 50.0, f"Mean solve time {mean_time_ms:.2f} ms exceeded 50 ms budget"
+
+
+def test_adaptive_surplus_and_throttling_bypass():
+    """Verify multi-pass surplus redistribution and that upward expansion is not blocked by deadband when throttled."""
+    pool = Pool(capacity={"cpu": 2.0, "mem_mb": 2048.0})
+    tenants = [
+        Tenant(
+            id="t_idle",
+            name="Idle Tenant",
+            weight=1.0,
+            priority=1,
+            arrival_seq=1,
+            active=True,
+            demand={"cpu": 1.0, "mem_mb": 512.0},
+            minimum={"cpu": 0.1, "mem_mb": 128.0},
+        ),
+        Tenant(
+            id="t_busy",
+            name="Throttled Tenant",
+            weight=1.0,
+            priority=1,
+            arrival_seq=2,
+            active=True,
+            demand={"cpu": 1.5, "mem_mb": 512.0},
+            minimum={"cpu": 0.1, "mem_mb": 128.0},
+        ),
+    ]
+    # t_idle uses very little; t_busy is heavily throttled
+    obs = {
+        "t_idle": TenantObs(usage={"cpu": 0.1, "mem_mb": 128.0}, throttle_ratio=0.0, backlog=0),
+        "t_busy": TenantObs(usage={"cpu": 0.8, "mem_mb": 256.0}, throttle_ratio=0.20, backlog=3),
+    }
+
+    allocator = AdaptiveAllocator()
+    plan = allocator.allocate(pool, tenants, obs, now=1.0)
+
+    # t_busy should receive surplus CPU well above its proportional static share (which would be 1.0)
+    assert plan.alloc["t_busy"]["cpu"] > 1.2
+    assert plan.alloc["t_idle"]["cpu"] + plan.alloc["t_busy"]["cpu"] <= pool.capacity["cpu"] + 1e-4
+

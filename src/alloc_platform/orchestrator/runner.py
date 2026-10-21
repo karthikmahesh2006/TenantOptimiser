@@ -276,11 +276,23 @@ async def _execute_single_run(
                 db.commit()
             return
 
-    # Build reproducible open-loop workload trace
+    # Build reproducible open-loop workload trace using calibrated rates if available
+    calibrated_rates_path = os.path.join(config.data_dir, "calibrated_rates.json")
+    calibrated_rates: Dict[str, float] = {}
+    if os.path.exists(calibrated_rates_path):
+        try:
+            with open(calibrated_rates_path, "r", encoding="utf-8") as f:
+                cal_data = json.load(f)
+                calibrated_rates = cal_data.get("calibrated_rates", {})
+        except Exception:
+            calibrated_rates = {}
+
+    trace_rate = calibrated_rates if calibrated_rates else 2.0
     trace = build_trace(
         active_tenants,
         duration_s=scen_spec.duration_s,
         seed=scen_spec.seed,
+        base_rate_rps=trace_rate,
     )
     load_stop_event = asyncio.Event()
     load_task: Optional[asyncio.Task] = None
@@ -295,6 +307,8 @@ async def _execute_single_run(
     cgroup_throttled_sum: Dict[str, float] = {t.id: 0.0 for t in active_tenants}
     usages_by_tenant_history: List[Dict[str, Dict[str, float]]] = []
     non_tenant_cores_history: List[float] = []
+    alloc_history_by_epoch: List[Dict[str, float]] = []
+    throttled_while_spare_epochs = 0
     max_steal_pct: float = 0.0
     prev_step_time = 0.0
 
@@ -481,6 +495,21 @@ async def _execute_single_run(
             plans_history.append(plan)
             prev_plan = plan
 
+            # Item 11: Check if tenant throttled while pool capacity unallocated
+            tot_alloc_cpu = sum(lims.get("cpu", 0.0) for lims in plan.alloc.values())
+            pool_cpu_cap = curr_pool.capacity.get("cpu", config.default_pool_cpu)
+            has_spare_capacity = (pool_cpu_cap - tot_alloc_cpu) > 0.05
+            is_step_throttled = any(
+                obs[t.id].throttle_ratio > config.throttle_threshold
+                for t in active_tenants if t.active and t.id in obs
+            )
+            if has_spare_capacity and is_step_throttled:
+                throttled_while_spare_epochs += 1
+
+            alloc_history_by_epoch.append(
+                {t.id: plan.alloc.get(t.id, {}).get("cpu", 0.0) for t in active_tenants if t.active}
+            )
+
             # Enforce limits if real docker
             apply_ms = 0.0
             if enforcer:
@@ -616,6 +645,25 @@ async def _execute_single_run(
                 )
             db.commit()
 
+        # Convergence calculation across startup and timed events (A4)
+        event_times = sorted(list(set([0] + [ev.t_sec for ev in scen_spec.events if ev.t_sec < duration])))
+        conv_epochs_list = []
+        pool_ref_cpu = max(0.1, curr_pool.capacity.get("cpu", 1.5))
+        for ev_t in event_times:
+            conv_step = duration - ev_t
+            for t_idx in range(ev_t + 1, len(alloc_history_by_epoch)):
+                prev_vec = alloc_history_by_epoch[t_idx - 1]
+                curr_vec = alloc_history_by_epoch[t_idx]
+                max_delta = max((abs(curr_vec.get(tid, 0.0) - prev_vec.get(tid, 0.0)) for tid in curr_vec), default=0.0)
+                if (max_delta / pool_ref_cpu) <= config.deadband:
+                    conv_step = t_idx - ev_t
+                    break
+            conv_epochs_list.append(conv_step)
+
+        convergence_initial = float(conv_epochs_list[0]) if conv_epochs_list else 1.0
+        convergence_avg = float(np.mean(conv_epochs_list)) if conv_epochs_list else 1.0
+        throttled_while_spare_ratio = throttled_while_spare_epochs / max(1.0, float(duration))
+
         # Compute summary metrics for run
         _compute_and_save_run_metrics(
             db=db,
@@ -633,6 +681,9 @@ async def _execute_single_run(
             cgroup_usec_sum=cgroup_usec_sum,
             cgroup_throttled_sum=cgroup_throttled_sum,
             non_tenant_cpu_cores_avg=non_tenant_cpu_cores_avg,
+            throttled_while_spare_ratio=throttled_while_spare_ratio,
+            convergence_initial=convergence_initial,
+            convergence_avg=convergence_avg,
         )
 
         run_row = db.query(Run).filter(Run.id == run_id).first()
@@ -663,6 +714,9 @@ def _compute_and_save_run_metrics(
     cgroup_usec_sum: Optional[Dict[str, float]] = None,
     cgroup_throttled_sum: Optional[Dict[str, float]] = None,
     non_tenant_cpu_cores_avg: float = 0.0,
+    throttled_while_spare_ratio: float = 0.0,
+    convergence_initial: float = 1.0,
+    convergence_avg: float = 1.0,
 ) -> None:
     if not plans or not tenants or not pool:
         return
@@ -737,6 +791,9 @@ def _compute_and_save_run_metrics(
         "solve_ms_avg": solve_ms,
         "solve_time_epoch_pct": solve_epoch_pct,
         "throttle_time_ratio": float(overall_throttle_ratio),
+        "throttled_while_spare_ratio": float(throttled_while_spare_ratio),
+        "convergence_initial": float(convergence_initial),
+        "convergence_avg": float(convergence_avg),
         "non_tenant_cpu_cores_avg": float(non_tenant_cpu_cores_avg),
     }
 

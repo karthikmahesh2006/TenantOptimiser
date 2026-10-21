@@ -6,6 +6,9 @@ import sys
 
 
 def run_ssm(instance_id: str, commands: list[str], region: str = "ap-south-1") -> tuple[str, str, int]:
+    import os
+
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     params = json.dumps({"commands": commands})
     cmd = [
         "aws",
@@ -24,7 +27,7 @@ def run_ssm(instance_id: str, commands: list[str], region: str = "ap-south-1") -
         "--output",
         "text",
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env)
     if res.returncode != 0:
         return "", res.stderr, res.returncode
 
@@ -49,7 +52,7 @@ def run_ssm(instance_id: str, commands: list[str], region: str = "ap-south-1") -
             "--output",
             "json",
         ]
-        chk_res = subprocess.run(chk_cmd, capture_output=True, text=True, encoding="utf-8")
+        chk_res = subprocess.run(chk_cmd, capture_output=True, text=True, encoding="utf-8", env=env)
         if chk_res.returncode == 0:
             try:
                 data = json.loads(chk_res.stdout)
@@ -60,9 +63,6 @@ def run_ssm(instance_id: str, commands: list[str], region: str = "ap-south-1") -
                 pass
         time.sleep(3)
 
-
-    import os
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
 
     get_cmd = [
         "aws",

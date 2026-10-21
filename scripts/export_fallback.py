@@ -79,7 +79,7 @@ def export_bundle(
         bundle = {
             "recording_date": datetime.utcnow().isoformat(),
             "instance_type": "c7i-flex.large",
-            "account_label": "481374029754",
+            "account_label": "aws-account-placeholder",
             "region": "ap-south-1",
             "provenance": bundle_prov,
             "experiments": exp_list,

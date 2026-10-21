@@ -9,9 +9,22 @@ import tempfile
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from scripts.ssm_run import run_ssm
 
-BUCKET = "alloc-platform-481374029754-ap-south-1"
-IID = "i-011b23accbf304c75"
-REGION = "ap-south-1"
+def load_state():
+    state_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "infra", "state", "resources.env"))
+    state = {}
+    if os.path.exists(state_file):
+        with open(state_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    state[k.strip()] = v.strip()
+    return state
+
+state = load_state()
+BUCKET = os.getenv("BUCKET", state.get("BUCKET", "alloc-platform-bucket-placeholder"))
+IID = os.getenv("IID", state.get("IID", "i-placeholder"))
+REGION = os.getenv("REGION", state.get("REGION", "ap-south-1"))
 
 
 def deploy():

@@ -24,11 +24,10 @@ def export_bundle(
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
     try:
-        if experiment_id:
+        if experiment_id and experiment_id != "all":
             experiments = db.query(Experiment).filter(Experiment.id == experiment_id).all()
         else:
-            all_exps = db.query(Experiment).all()
-            experiments = [e for e in all_exps if e.id == "faculty_demo_measured"] or all_exps
+            experiments = db.query(Experiment).filter(Experiment.status == "done").all()
         exp_list = []
         for e in experiments:
             runs = db.query(Run).filter(Run.experiment_id == e.id).all()
@@ -97,6 +96,6 @@ def export_bundle(
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "data/recorded_fallback.json"
-    exp_id = sys.argv[2] if len(sys.argv) > 2 else "faculty_demo_measured"
+    exp_id = sys.argv[2] if len(sys.argv) > 2 else "all"
     export_bundle(out, exp_id)
 

@@ -31,13 +31,13 @@ class AdaptiveParams:
         use_surplus: Ablation flag: whether to redistribute idle CPU to pressurized tenants.
     """
 
-    epoch_s: float = 1.0
-    ewma_alpha: float = 0.3
-    headroom_h: float = 0.20
-    lambda_churn: float = 0.10
-    deadband: float = 0.05
-    min_dwell_s: float = 3.0
-    max_shrink_per_epoch: float = 0.20
+    epoch_s: float = config.epoch_interval_s
+    ewma_alpha: float = config.ewma_alpha
+    headroom_h: float = config.headroom_h
+    lambda_churn: float = config.lambda_churn
+    deadband: float = config.deadband
+    min_dwell_s: float = config.min_dwell_s
+    max_shrink_per_epoch: float = config.max_shrink_per_epoch
     memory_safety_mb: float = config.memory_safety_mb
     throttle_threshold: float = config.throttle_threshold
     use_estimation: bool = True

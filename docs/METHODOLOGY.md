@@ -37,7 +37,7 @@ Progressive filling continuously raises the lowest $\widetilde{d}_i$ by scaling 
 The adaptive policy balances dynamic efficiency with operational stability:
 1. **Dynamic Demand Estimation**:
    $$\hat{d}_{i, r} = \min\left( D_{i, r}, \max(M_{i, r}, (1 + h) \cdot \text{EWMA}(u_{i, r})) \right)$$
-   If throttling exceeds threshold ($\ge 5\%$) or worker queue backlog grows, the estimate escalates aggressively toward declared demand (fast up, slow down).
+   If throttling exceeds threshold ($\ge 5\%$, `config.throttle_threshold = 0.05`) or worker queue backlog grows, the estimate escalates aggressively toward declared demand (fast up, slow down).
 2. **Convex Formulation**:
    Maximizes log-utility penalized by churn using SLSQP:
    $$\max_{s} \sum_{i=1}^N w_i \ln(s_i) - \lambda \sum_{i=1}^N \sum_{r} \frac{\phi_{\delta}(s_i \hat{d}_{i, r} - x_{i, r}^{(\text{prev})})}{C_r}$$
@@ -45,10 +45,12 @@ The adaptive policy balances dynamic efficiency with operational stability:
    Where $\phi_{\delta}(z) = \delta^2 (\sqrt{1 + (z/\delta)^2} - 1)$ is the smooth Pseudo-Huber loss.
 3. **Surplus Harvesting**:
    Idle CPU capacity (never memory) is redistributed to throttled/backlogged tenants in proportion to weights.
-4. **Stability Filtering**:
-   - Updates suppressed if relative change is within deadband ($< 5\%$) and minimum dwell time ($3\text{ s}$) has not elapsed.
-   - Contraction rate-limited to at most $20\%$ shrink per epoch.
-   - Memory safety: $x_{i, \text{mem}} \ge u_{i, \text{mem}} + 64\text{ MB}$ protects containers from fatal OOM kills.
+4. **Stability Filtering & Single-Source Constants**:
+   - Updates suppressed if relative change is within deadband ($< 5\%$, `config.deadband = 0.05`) and minimum dwell time ($3\text{ s}$, `config.min_dwell_s = 3.0`) has not elapsed.
+   - Contraction rate-limited to at most $20\%$ (`config.max_shrink_per_epoch = 0.20`) shrink per epoch.
+   - Memory safety: $x_{i, \text{mem}} \ge u_{i, \text{mem}} + 64\text{ MB}$ (`config.memory_safety_mb = 64.0`) protects containers from fatal OOM kills.
+   - Allocation control loop period is $1.0\text{ s}$ (`config.epoch_interval_s = 1.0`).
+   - Tenant pool budget is restricted to at most $75\%$ (`config.default_host_cpu_ratio = 0.75`, `config.default_host_mem_ratio = 0.75`) of host vCPU and RAM, reserving $25\%$ outside the pool for the host OS, API server, load generator, and cgroup sampler.
 
 ## 3. Metrics & Provenance Definitions
 

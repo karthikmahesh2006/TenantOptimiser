@@ -678,6 +678,7 @@ def _compute_and_save_run_metrics(
     completed_count = len(completed_samples)
     missed_count = sum(1 for s in samples if s.status == "deadline_missed")
     rejected_count = sum(1 for s in samples if s.status == "rejected")
+    censored_count = sum(1 for s in samples if getattr(s, "is_censored", False) or s.status == "timeout")
     latencies = [s.latency_ms for s in completed_samples]
 
     tp = completed_count / max(1.0, duration_s)
@@ -693,6 +694,7 @@ def _compute_and_save_run_metrics(
             "completion_ratio": cr,
             "deadline_miss_rate": mr,
             "rejected": float(rejected_count),
+            "censored": float(censored_count),
             "mean_latency_ms": mean_lat,
             "p95_latency_ms": p95_lat,
             "oom_kills": float(oom_kills_count),
@@ -707,6 +709,7 @@ def _compute_and_save_run_metrics(
         t_comp_count = len(t_completed)
         t_miss_count = sum(1 for s in t_samples if s.status == "deadline_missed")
         t_rej_count = sum(1 for s in t_samples if s.status == "rejected")
+        t_censored_count = sum(1 for s in t_samples if getattr(s, "is_censored", False) or s.status == "timeout")
         t_lats = [s.latency_ms for s in t_completed]
 
         t_tp = t_comp_count / max(1.0, duration_s)
@@ -721,6 +724,7 @@ def _compute_and_save_run_metrics(
         metrics_map[f"tenant:{t.id}:completion_ratio"] = t_cr
         metrics_map[f"tenant:{t.id}:deadline_miss_rate"] = t_mr
         metrics_map[f"tenant:{t.id}:rejected"] = float(t_rej_count)
+        metrics_map[f"tenant:{t.id}:censored"] = float(t_censored_count)
         metrics_map[f"tenant:{t.id}:mean_latency_ms"] = t_mean_lat
         metrics_map[f"tenant:{t.id}:p95_latency_ms"] = t_p95_lat
         metrics_map[f"tenant:{t.id}:oom_kills"] = t_oom

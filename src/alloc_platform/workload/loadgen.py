@@ -24,7 +24,8 @@ class RequestSample:
     completion_time_s: float
     latency_ms: float
     service_ms: float
-    status: str  # "ok", "deadline_missed", "rejected", "error"
+    status: str  # "ok", "deadline_missed", "rejected", "timeout", "error"
+    is_censored: bool = False
     provenance: str = "MEASURED"
 
 
@@ -36,6 +37,7 @@ async def _dispatch_single_request(
     t_zero: float,
     samples_list: list[RequestSample],
     semaphore: asyncio.Semaphore,
+    hard_timeout_s: float = 10.0,
 ) -> None:
     async with semaphore:
         dispatch_rel_s = time.time() - t_zero
@@ -48,9 +50,13 @@ async def _dispatch_single_request(
 
         status = "error"
         service_ms = 0.0
+        is_censored = False
+
+        # Use generous hard timeout to allow true latency observation without clipping
+        req_timeout = max(hard_timeout_s, arrival.deadline_ms / 1000.0 * 5.0)
 
         try:
-            resp = await client.post(url, json=payload, timeout=arrival.deadline_ms / 1000.0 * 2.0)
+            resp = await client.post(url, json=payload, timeout=req_timeout)
             completion_rel_s = time.time() - t_zero
             latency_ms = (completion_rel_s - arrival.scheduled_time_s) * 1000.0
 
@@ -69,7 +75,8 @@ async def _dispatch_single_request(
         except httpx.TimeoutException:
             completion_rel_s = time.time() - t_zero
             latency_ms = (completion_rel_s - arrival.scheduled_time_s) * 1000.0
-            status = "deadline_missed"
+            status = "timeout"
+            is_censored = True
         except Exception:
             completion_rel_s = time.time() - t_zero
             latency_ms = (completion_rel_s - arrival.scheduled_time_s) * 1000.0
@@ -86,9 +93,11 @@ async def _dispatch_single_request(
                 latency_ms=round(latency_ms, 2),
                 service_ms=round(service_ms, 2),
                 status=status,
+                is_censored=is_censored,
                 provenance="MEASURED",
             )
         )
+
 
 
 async def run_load(

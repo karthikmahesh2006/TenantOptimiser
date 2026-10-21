@@ -58,6 +58,12 @@ class PlatformConfig(BaseModel):
     cgroup_fs_root: str = "/sys/fs/cgroup"
 
     # Persistence & Security
+    data_dir: str = Field(
+        default_factory=lambda: os.getenv(
+            "DATA_DIR",
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data")),
+        )
+    )
     db_path: str = Field(default_factory=lambda: os.getenv("DB_PATH", "alloc.db"))
     secret_key: str = Field(
         default_factory=lambda: os.getenv(

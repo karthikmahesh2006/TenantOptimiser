@@ -173,9 +173,13 @@ async def test_cancellation_cleanup():
     db.close()
 
     task = asyncio.create_task(execute_experiment_async(exp_id))
-    await asyncio.sleep(0.05)
+    cancelled = False
+    for _ in range(50):
+        if cancel_active_experiment(exp_id):
+            cancelled = True
+            break
+        await asyncio.sleep(0.05)
 
-    cancelled = cancel_active_experiment(exp_id)
     assert cancelled is True
     await task
 

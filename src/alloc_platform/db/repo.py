@@ -122,6 +122,7 @@ ALLOCATION_DERIVED_METRIC_PREFIXES = (
     "mean_satisfaction",
     "unmet_demand",
     "allocated_util",
+    "idle_reserved",
     "churn",
     "changes_count",
     "guarantee_satisfaction",
@@ -129,7 +130,7 @@ ALLOCATION_DERIVED_METRIC_PREFIXES = (
 
 
 def is_allocation_derived(metric_name: str) -> bool:
-    return any(metric_name.startswith(p) for p in ALLOCATION_DERIVED_METRIC_PREFIXES)
+    return any(p in metric_name for p in ALLOCATION_DERIVED_METRIC_PREFIXES)
 
 
 def get_run_metrics(db: Session, run_id: str) -> Dict[str, float]:

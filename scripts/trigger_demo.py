@@ -52,32 +52,37 @@ async def run_benchmark():
         m = get_run_metrics(db, r.id)
         metrics_by_policy[r.policy] = m
 
-    print("\n" + "=" * 110)
-    print("                      MEASURED LIVE HARDWARE BENCHMARK RESULTS")
-    print("            (Queried strictly from SQLite run_metrics rows for this execution run)")
-    print("=" * 110)
+    print("\n" + "=" * 135)
+    print("                              MEASURED LIVE HARDWARE BENCHMARK RESULTS")
+    print("               (Queried strictly from SQLite run_metrics rows for this execution run)")
+    print("=" * 135)
     print(
-        f"{'Policy':<13} | {'Jain (CALC)':<12} | {'Satis (CALC)':<12} | {'Alloc Util':<12} | {'Cons Util':<12} | {'Churn':<7} | {'Solve':<9} | {'Throughput':<14} | {'Latency (p95)':<14}"
+        f"{'Policy':<13} | {'Jain (CALC)':<12} | {'Satis (CALC)':<12} | {'Unmet (Throt|Miss)':<20} | {'Idle CPU':<10} | {'Cons Util':<11} | {'Solve Time':<20} | {'Throughput':<14} | {'Latency (p95)':<14}"
     )
-    print("-" * 110)
+    print("-" * 135)
 
     for pol in ["fcfs", "proportional", "adaptive"]:
         m = metrics_by_policy.get(pol, {})
         jain = m.get("jain_fairness_primary", 0.0)
         satis = m.get("mean_satisfaction", 0.0)
-        alloc_u = m.get("allocated_util_cpu", 0.0) * 100
-        cons_u = m.get("consumed_util_cpu", 0.0) * 100
-        churn = m.get("churn", 0.0)
+        throt = m.get("throttle_time_ratio", 0.0) * 100.0
+        miss = m.get("deadline_miss_rate", 0.0) * 100.0
+        idle_c = m.get("idle_reserved_cpu", 0.0)
+        cons_u = m.get("consumed_util_cpu", 0.0) * 100.0
         solve_ms = m.get("solve_ms_avg", 0.0)
+        solve_pct = m.get("solve_time_epoch_pct", (solve_ms / 1000.0) * 100.0)
         tp = m.get("throughput", 0.0)
         p95_lat = m.get("p95_latency_ms", 0.0)
 
+        unmet_str = f"{throt:>4.1f}% | {miss:>4.1f}%"
+        solve_str = f"{solve_ms:>5.2f} ms ({solve_pct:>4.2f}%)"
+
         print(
-            f"{pol.upper():<13} | {jain:<12.4f} | {satis:<12.4f} | {alloc_u:>5.1f}% CPU   | {cons_u:>5.1f}% CPU   | {churn:<7.3f} | {solve_ms:>6.2f} ms | {tp:>7.2f} req/s   | {p95_lat:>8.1f} ms"
+            f"{pol.upper():<13} | {jain:<12.4f} | {satis:<12.4f} | {unmet_str:<20} | {idle_c:>5.2f} cores | {cons_u:>5.1f}% CPU   | {solve_str:<20} | {tp:>7.2f} req/s   | {p95_lat:>8.1f} ms"
         )
-    print("-" * 110)
-    print("Provenance: Jain, Satis, Alloc Util, Churn are CALCULATED; Cons Util, Solve, Throughput, Latency are MEASURED.")
-    print("=" * 110)
+    print("-" * 135)
+    print("Provenance: Jain, Satis, Idle CPU are CALCULATED; Cons Util, Unmet Need, Solve, Throughput, Latency are MEASURED.")
+    print("=" * 135)
     db.close()
 
 

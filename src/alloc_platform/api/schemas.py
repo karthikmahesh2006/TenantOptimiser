@@ -60,9 +60,25 @@ class ExperimentCreate(BaseModel):
 
 
 class RunMetricOut(BaseModel):
-    metric_name: str
-    metric_value: float
-    provenance: str
+    """Single metric record with explicit provenance label and documented definitions.
+
+    Key Metric Definitions:
+        - mean_satisfaction (CALCULATED): Bottleneck ratio min_r(alloc_r / demand_r).
+          The denominator is strictly contractual DECLARED demand (SLA), NOT dynamic estimate.
+        - unmet_demand_cpu/mem (CALCULATED): Demand minus allocation evaluated against DECLARED demand.
+        - throttle_time_ratio (MEASURED): Fraction of execution time throttled by cgroup v2 cpu.stat.
+          Unmet actual need component 1: throttled_usec / (throttled_usec + usage_usec).
+        - deadline_miss_rate (MEASURED): Fraction of completed requests missing latency deadline.
+          Unmet actual need component 2: deadline_misses / completed.
+        - idle_reserved_cpu/mem_mb (CALCULATED): Allocated quota that remained idle (alloc - consumed).
+        - non_tenant_cpu_cores_avg (MEASURED): Host CPU cores consumed by API, loadgen, and telemetry.
+          Run invalidated if exceeding 25% host reservation (0.50 vCPU).
+        - solve_ms_avg / solve_time_epoch_pct (MEASURED): Absolute solver latency (ms) and fraction of epoch.
+    """
+
+    metric_name: str = Field(..., description="Unique metric identifier, e.g. mean_satisfaction or throttle_time_ratio")
+    metric_value: float = Field(..., description="Numerical value of the metric")
+    provenance: str = Field(..., description="Provenance label: MEASURED, CALCULATED, CONFIGURED, or SIMULATED")
 
 
 class RunOut(BaseModel):
@@ -75,7 +91,13 @@ class RunOut(BaseModel):
     invalidation_reason: Optional[str] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
-    metrics: Dict[str, float] = {}
+    metrics: Dict[str, float] = Field(
+        default={},
+        description=(
+            "Summary metrics dictionary. Satisfaction and unmet demand evaluated against DECLARED demand. "
+            "Unmet actual need reported via separate throttle_time_ratio and deadline_miss_rate."
+        ),
+    )
 
 
 class ExperimentOut(BaseModel):

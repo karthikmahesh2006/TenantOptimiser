@@ -102,3 +102,37 @@ def test_bootstrap_ci():
     point, lo, hi = bootstrap_ci(data, stat=np.mean, n=1000, seed=42)
     assert 9.8 < point < 10.2
     assert lo <= point <= hi
+
+
+def test_idle_reserved():
+    """Verify idle reserved capacity (allocated minus consumed) calculation."""
+    from alloc_platform.allocator.metrics import idle_reserved
+
+    allocs = [
+        {"cpu": 1.5, "mem_mb": 1024.0},
+        {"cpu": 1.0, "mem_mb": 512.0},
+    ]
+    usages = [
+        {"cpu": 0.5, "mem_mb": 800.0},
+        {"cpu": 1.2, "mem_mb": 400.0},
+    ]
+    res = idle_reserved(allocs, usages)
+    # Step 0: cpu idle = 1.0, mem idle = 224.0
+    # Step 1: cpu idle = max(0, 1.0 - 1.2) = 0.0, mem idle = 112.0
+    assert pytest.approx(res["cpu"], rel=1e-6) == 1.0
+    assert pytest.approx(res["mem_mb"], rel=1e-6) == 336.0
+
+
+def test_tenant_churn_and_changes():
+    """Verify per-tenant churn and change counter."""
+    from alloc_platform.allocator.metrics import tenant_churn, tenant_count_changes
+
+    cap = {"cpu": 2.0}
+    p1 = Plan(alloc={"t1": {"cpu": 1.0}, "t2": {"cpu": 0.5}})
+    p2 = Plan(alloc={"t1": {"cpu": 1.5}, "t2": {"cpu": 0.5}})
+    p3 = Plan(alloc={"t1": {"cpu": 1.5}, "t2": {"cpu": 0.5}})
+
+    assert tenant_count_changes([p1, p2, p3], "t1") == 1
+    assert tenant_count_changes([p1, p2, p3], "t2") == 0
+    assert pytest.approx(tenant_churn([p1, p2, p3], cap, "t1"), rel=1e-6) == 0.125
+    assert tenant_churn([p1, p2, p3], cap, "t2") == 0.0

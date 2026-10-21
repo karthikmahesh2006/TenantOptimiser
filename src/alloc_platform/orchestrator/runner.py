@@ -18,8 +18,11 @@ from alloc_platform.allocator.metrics import (
     consumed_util,
     count_changes,
     guarantee_satisfaction,
+    idle_reserved,
     jain_index,
     satisfaction,
+    tenant_churn,
+    tenant_count_changes,
     unmet_demand,
 )
 from alloc_platform.allocator.proportional import allocate_proportional
@@ -288,6 +291,11 @@ async def _execute_single_run(
 
     prev_cgroup_stats: Dict[str, Dict[str, float]] = {}
     oom_kills_per_tenant: Dict[str, int] = {t.id: 0 for t in active_tenants}
+    cgroup_usec_sum: Dict[str, float] = {t.id: 0.0 for t in active_tenants}
+    cgroup_throttled_sum: Dict[str, float] = {t.id: 0.0 for t in active_tenants}
+    usages_by_tenant_history: List[Dict[str, Dict[str, float]]] = []
+    non_tenant_cores_history: List[float] = []
+    max_steal_pct: float = 0.0
     prev_step_time = 0.0
 
     try:
@@ -380,6 +388,8 @@ async def _execute_single_run(
                     nr_throttled = int(max(0.0, cgroup_stats["nr_throttled"] - prev_st.get("nr_throttled", 0.0)))
                     oom_kills_per_tenant[t.id] = int(cgroup_stats.get("oom_kill", 0.0))
                     prev_cgroup_stats[t.id] = dict(cgroup_stats)
+                    cgroup_usec_sum[t.id] = cgroup_usec_sum.get(t.id, 0.0) + delta_usec
+                    cgroup_throttled_sum[t.id] = cgroup_throttled_sum.get(t.id, 0.0) + delta_throttled
                 else:
                     nominal_cpu = float(t.demand.get("cpu", 1.0))
                     alloc_cpu = (
@@ -390,8 +400,11 @@ async def _execute_single_run(
                     used_cpu = min(nominal_cpu * 0.9, alloc_cpu)
                     throttle_ratio = 0.1 if (nominal_cpu > alloc_cpu + 1e-4) else 0.0
                     delta_throttled = throttle_ratio * 100000.0
+                    delta_usec = used_cpu * dt * 1_000_000.0
                     nr_throttled = 1 if throttle_ratio > 0 else 0
                     used_mem = round(float(t.demand.get("mem_mb", 256.0)) * 0.8, 2)
+                    cgroup_usec_sum[t.id] = cgroup_usec_sum.get(t.id, 0.0) + delta_usec
+                    cgroup_throttled_sum[t.id] = cgroup_throttled_sum.get(t.id, 0.0) + delta_throttled
 
                 obs[t.id] = TenantObs(
                     usage={
@@ -419,9 +432,18 @@ async def _execute_single_run(
             # Record step usages for consumed utilisation audit
             step_usages = [dict(obs[t.id].usage) for t in active_tenants if t.active and t.id in obs]
             usages_history.append(step_usages)
+            usages_by_tenant_history.append(
+                {t.id: dict(obs[t.id].usage) for t in active_tenants if t.active and t.id in obs}
+            )
 
             # Sample host metrics
             cpu_pct, mem_used, mem_tot, steal_pct = host_mon.sample_procfs()
+            max_steal_pct = max(max_steal_pct, steal_pct)
+            host_cores_used = (cpu_pct / 100.0) * config.host_vcpus
+            tenant_cores_used = sum(obs[t.id].usage["cpu"] for t in active_tenants if t.active and t.id in obs)
+            non_tenant_cores = max(0.0, host_cores_used - tenant_cores_used)
+            non_tenant_cores_history.append(non_tenant_cores)
+
             h_sample = HostSample(
                 run_id=run_id,
                 timestamp_s=step_time,
@@ -570,6 +592,29 @@ async def _execute_single_run(
         db.commit()
 
         total_oom_kills = sum(oom_kills_per_tenant.values())
+        non_tenant_cpu_cores_avg = (
+            float(np.mean(non_tenant_cores_history)) if non_tenant_cores_history else 0.0
+        )
+        max_non_tenant_cores = config.host_vcpus * (1.0 - config.default_host_cpu_ratio)
+
+        run_row = db.query(Run).filter(Run.id == run_id).first()
+        if run_row:
+            if non_tenant_cpu_cores_avg > max_non_tenant_cores:
+                run_row.is_valid = False
+                run_row.invalidation_reason = (
+                    f"Non-tenant CPU {non_tenant_cpu_cores_avg:.3f} cores exceeded host reservation ({max_non_tenant_cores:.2f} cores)"
+                )
+            elif max_steal_pct > config.max_cpu_steal_pct:
+                run_row.is_valid = False
+                run_row.invalidation_reason = (
+                    f"High host steal {max_steal_pct:.1f}% exceeded threshold of {config.max_cpu_steal_pct}%"
+                )
+            elif total_oom_kills > 0:
+                run_row.is_valid = False
+                run_row.invalidation_reason = (
+                    f"Unexpected OOM kill count {total_oom_kills} exceeded threshold of 0"
+                )
+            db.commit()
 
         # Compute summary metrics for run
         _compute_and_save_run_metrics(
@@ -577,6 +622,7 @@ async def _execute_single_run(
             run_id=run_id,
             plans=plans_history,
             usages_history=usages_history,
+            usages_by_tenant_history=usages_by_tenant_history,
             tenants=active_tenants,
             pool=curr_pool,
             provenance=provenance,
@@ -584,6 +630,9 @@ async def _execute_single_run(
             duration_s=float(scen_spec.duration_s),
             oom_kills_count=total_oom_kills,
             oom_kills_per_tenant=oom_kills_per_tenant,
+            cgroup_usec_sum=cgroup_usec_sum,
+            cgroup_throttled_sum=cgroup_throttled_sum,
+            non_tenant_cpu_cores_avg=non_tenant_cpu_cores_avg,
         )
 
         run_row = db.query(Run).filter(Run.id == run_id).first()
@@ -603,15 +652,19 @@ def _compute_and_save_run_metrics(
     run_id: str,
     plans: List[Plan],
     usages_history: List[List[Dict[str, float]]],
-    tenants: List[Tenant],
-    pool: Pool,
-    provenance: str,
+    usages_by_tenant_history: Optional[List[Dict[str, Dict[str, float]]]] = None,
+    tenants: Optional[List[Tenant]] = None,
+    pool: Optional[Pool] = None,
+    provenance: str = "MEASURED",
     req_samples: Optional[List[RequestSample]] = None,
     duration_s: float = 60.0,
     oom_kills_count: int = 0,
     oom_kills_per_tenant: Optional[Dict[str, int]] = None,
+    cgroup_usec_sum: Optional[Dict[str, float]] = None,
+    cgroup_throttled_sum: Optional[Dict[str, float]] = None,
+    non_tenant_cpu_cores_avg: float = 0.0,
 ) -> None:
-    if not plans:
+    if not plans or not tenants or not pool:
         return
 
     last_plan = plans[-1]
@@ -655,6 +708,18 @@ def _compute_and_save_run_metrics(
     minimums = {t.id: t.minimum for t in active_tenants}
     feas_rate, infeas_rate = guarantee_satisfaction(last_plan.alloc, minimums, set(admitted_ids))
 
+    # Throttle time ratio (unmet actual need component 1 - MEASURED)
+    cgroup_u = cgroup_usec_sum or {}
+    cgroup_th = cgroup_throttled_sum or {}
+    tot_usec = sum(cgroup_u.values())
+    tot_th = sum(cgroup_th.values())
+    overall_throttle_ratio = (tot_th / (tot_usec + tot_th)) if (tot_usec + tot_th) > 0.0 else 0.0
+
+    # Solve time in absolute ms and percentage of epoch (Item 7 & A6)
+    solve_ms = float(np.mean([p.solve_ms for p in plans])) if plans else 0.0
+    epoch_ms = config.epoch_interval_s * 1000.0
+    solve_epoch_pct = (solve_ms / max(1.0, epoch_ms)) * 100.0
+
     metrics_map: Dict[str, float] = {
         "jain_fairness_primary": jain_primary,
         "jain_fairness_secondary": jain_secondary,
@@ -669,8 +734,31 @@ def _compute_and_save_run_metrics(
         "changes_count": float(changes_val),
         "guarantee_satisfaction_feasible": feas_rate,
         "guarantee_satisfaction_infeasible": infeas_rate,
-        "solve_ms_avg": float(np.mean([p.solve_ms for p in plans])),
+        "solve_ms_avg": solve_ms,
+        "solve_time_epoch_pct": solve_epoch_pct,
+        "throttle_time_ratio": float(overall_throttle_ratio),
+        "non_tenant_cpu_cores_avg": float(non_tenant_cpu_cores_avg),
     }
+
+    # Idle reserved capacity (allocated minus consumed - CALCULATED)
+    usages_by_t = usages_by_tenant_history or []
+    for t in active_tenants:
+        idle_cpu_steps = []
+        idle_mem_steps = []
+        for k in range(len(plans)):
+            alloc_k = plans[k].alloc.get(t.id, {})
+            usage_k = usages_by_t[k].get(t.id, {}) if k < len(usages_by_t) else {}
+            idle_cpu_steps.append(max(0.0, alloc_k.get("cpu", 0.0) - usage_k.get("cpu", 0.0)))
+            idle_mem_steps.append(max(0.0, alloc_k.get("mem_mb", 0.0) - usage_k.get("mem_mb", 0.0)))
+        metrics_map[f"tenant:{t.id}:idle_reserved_cpu"] = float(np.mean(idle_cpu_steps)) if idle_cpu_steps else 0.0
+        metrics_map[f"tenant:{t.id}:idle_reserved_mem_mb"] = float(np.mean(idle_mem_steps)) if idle_mem_steps else 0.0
+
+    metrics_map["idle_reserved_cpu"] = sum(
+        metrics_map.get(f"tenant:{t.id}:idle_reserved_cpu", 0.0) for t in active_tenants
+    )
+    metrics_map["idle_reserved_mem_mb"] = sum(
+        metrics_map.get(f"tenant:{t.id}:idle_reserved_mem_mb", 0.0) for t in active_tenants
+    )
 
     # Request-level metrics
     samples = req_samples or []
@@ -692,6 +780,7 @@ def _compute_and_save_run_metrics(
             "completed": float(completed_count),
             "throughput": tp,
             "completion_ratio": cr,
+            "deadline_misses": float(missed_count),
             "deadline_miss_rate": mr,
             "rejected": float(rejected_count),
             "censored": float(censored_count),
@@ -719,14 +808,22 @@ def _compute_and_save_run_metrics(
         t_p95_lat = float(np.percentile(t_lats, 95)) if t_lats else 0.0
         t_oom = float(oom_per_t.get(t.id, 0))
 
+        t_u = cgroup_u.get(t.id, 0.0)
+        t_th = cgroup_th.get(t.id, 0.0)
+        t_throttle_ratio = (t_th / (t_u + t_th)) if (t_u + t_th) > 0.0 else 0.0
+
         metrics_map[f"tenant:{t.id}:completed"] = float(t_comp_count)
         metrics_map[f"tenant:{t.id}:throughput"] = t_tp
         metrics_map[f"tenant:{t.id}:completion_ratio"] = t_cr
+        metrics_map[f"tenant:{t.id}:deadline_misses"] = float(t_miss_count)
         metrics_map[f"tenant:{t.id}:deadline_miss_rate"] = t_mr
         metrics_map[f"tenant:{t.id}:rejected"] = float(t_rej_count)
         metrics_map[f"tenant:{t.id}:censored"] = float(t_censored_count)
         metrics_map[f"tenant:{t.id}:mean_latency_ms"] = t_mean_lat
         metrics_map[f"tenant:{t.id}:p95_latency_ms"] = t_p95_lat
         metrics_map[f"tenant:{t.id}:oom_kills"] = t_oom
+        metrics_map[f"tenant:{t.id}:throttle_time_ratio"] = float(t_throttle_ratio)
+        metrics_map[f"tenant:{t.id}:churn"] = tenant_churn(plans, pool.capacity, t.id)
+        metrics_map[f"tenant:{t.id}:changes_count"] = float(tenant_count_changes(plans, t.id))
 
     save_run_metrics(db, run_id, metrics_map, default_provenance=provenance)

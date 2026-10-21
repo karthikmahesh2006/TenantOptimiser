@@ -135,6 +135,20 @@ def unused_reserved(
     Formula:
         sum_i max(0.0, alloc_{i, r} - usage_{i, r})
     """
+    return idle_reserved(allocations, consumptions)
+
+
+def idle_reserved(
+    allocations: Sequence[dict[str, float]], consumptions: Sequence[dict[str, float]]
+) -> dict[str, float]:
+    """Computes idle reserved capacity (allocated minus consumed) per resource.
+
+    Formula:
+        sum_i max(0.0, alloc_{i, r} - usage_{i, r})
+
+    Provenance:
+        CALCULATED (derived from allocations and measured usages).
+    """
     diff: dict[str, float] = {}
     for a, c in zip(allocations, consumptions):
         for res, alloc_val in a.items():
@@ -245,6 +259,48 @@ def count_changes(plan_sequence: Sequence[Plan], threshold: float = 0.01) -> int
             for res in set(curr_res.keys()) | set(prev_res.keys()):
                 if abs(curr_res.get(res, 0.0) - prev_res.get(res, 0.0)) > threshold:
                     change_count += 1
+    return change_count
+
+
+def tenant_churn(
+    plan_sequence: Sequence[Plan], capacity: dict[str, float], tenant_id: str
+) -> float:
+    """Computes normalized allocation churn for a single tenant across consecutive epochs.
+
+    Formula:
+        (1 / (K - 1)) * sum_{k=1}^{K-1} sum_r (|alloc_{tenant_id, r}^{(k)} - alloc_{tenant_id, r}^{(k-1)}| / capacity_r)
+    """
+    if len(plan_sequence) < 2:
+        return 0.0
+
+    total_delta = 0.0
+    k_transitions = len(plan_sequence) - 1
+
+    for k in range(k_transitions):
+        curr_res = plan_sequence[k + 1].alloc.get(tenant_id, {})
+        prev_res = plan_sequence[k].alloc.get(tenant_id, {})
+        for res, cap in capacity.items():
+            if cap > 1e-9:
+                d = abs(curr_res.get(res, 0.0) - prev_res.get(res, 0.0))
+                total_delta += d / cap
+
+    return float(total_delta / k_transitions)
+
+
+def tenant_count_changes(
+    plan_sequence: Sequence[Plan], tenant_id: str, threshold: float = 0.01
+) -> int:
+    """Counts discrete limit updates with magnitude > threshold for a single tenant."""
+    if len(plan_sequence) < 2:
+        return 0
+
+    change_count = 0
+    for k in range(len(plan_sequence) - 1):
+        curr_res = plan_sequence[k + 1].alloc.get(tenant_id, {})
+        prev_res = plan_sequence[k].alloc.get(tenant_id, {})
+        for res in set(curr_res.keys()) | set(prev_res.keys()):
+            if abs(curr_res.get(res, 0.0) - prev_res.get(res, 0.0)) > threshold:
+                change_count += 1
     return change_count
 
 

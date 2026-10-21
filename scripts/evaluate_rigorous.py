@@ -189,7 +189,14 @@ def print_comparison_table(scenario_name: str, analysis: Dict[str, Any]):
 
         print(f"  Adaptive Solver Latency: {ad_solve:.2f} ms ({ad_solve_pct:.2f}% of {config.epoch_interval_s:.1f}s epoch)")
 
-    print("=" * 140)
+    print("-" * 195)
+    print("  ADDITIONAL HARDWARE METRICS (Throttled-While-Spare & Convergence):")
+    for pol in stats:
+        th_sp = stats[pol].get("throttled_while_spare_ratio", {}).get("mean", 0.0) * 100.0
+        cv_in = stats[pol].get("convergence_initial", {}).get("mean", 1.0)
+        cv_av = stats[pol].get("convergence_avg", {}).get("mean", 1.0)
+        print(f"  {pol.upper():<16}: Throttled while spare capacity exists: {th_sp:>5.1f}% epochs | Convergence: {cv_in:.1f} epochs initial, {cv_av:.1f} epochs avg")
+    print("=" * 195)
 
 
 async def main():
@@ -202,6 +209,7 @@ async def main():
         default=None,
         help="Specific scenario ID to run (e.g. scenario_1_baseline, scenario_2_burst, scenario_3_capacity_cut, scenario_4_churn)",
     )
+    parser.add_argument("--policies", type=str, default="fcfs,proportional,drf,adaptive,adaptive_noise", help="Comma-separated policy list")
     parser.add_argument("--repeats", type=int, default=5, help="Number of repeats per policy (default: 5)")
     parser.add_argument("--ablations", action="store_true", help="Run Adaptive ablation study on Scenario 2")
     parser.add_argument("--analyze-only", type=str, default=None, help="Analyze and print existing experiment ID")
@@ -218,7 +226,7 @@ async def main():
     print("=" * 120)
 
     scenarios = get_predefined_scenarios()
-    policies_core = ["fcfs", "proportional", "drf", "adaptive", "adaptive_noise"]
+    policies_core = [p.strip() for p in args.policies.split(",") if p.strip()]
 
     if args.ablations:
         print("\n" + "=" * 120)

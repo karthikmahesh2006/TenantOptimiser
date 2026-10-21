@@ -1,0 +1,105 @@
+{
+  "provenance": "CALIBRATION",
+  "measured_workloads": {
+    "cpu_heavy": {
+      "cpu_sec_per_req": 0.011983,
+      "mem_rss_mb": 100.88,
+      "mean_latency_ms": 32.17,
+      "p95_latency_ms": 48.96,
+      "wall_duration_s": 0.81,
+      "completed": 100,
+      "provenance": "CALIBRATION"
+    },
+    "memory_heavy": {
+      "cpu_sec_per_req": 0.073185,
+      "mem_rss_mb": 36.94,
+      "mean_latency_ms": 287.33,
+      "p95_latency_ms": 430.22,
+      "wall_duration_s": 7.26,
+      "completed": 100,
+      "provenance": "CALIBRATION"
+    },
+    "mixed": {
+      "cpu_sec_per_req": 0.042605,
+      "mem_rss_mb": 36.88,
+      "mean_latency_ms": 159.92,
+      "p95_latency_ms": 232.56,
+      "wall_duration_s": 4.03,
+      "completed": 100,
+      "provenance": "CALIBRATION"
+    },
+    "low_cpu": {
+      "cpu_sec_per_req": 0.017124,
+      "mem_rss_mb": 36.75,
+      "mean_latency_ms": 65.55,
+      "p95_latency_ms": 99.01,
+      "wall_duration_s": 1.66,
+      "completed": 100,
+      "provenance": "CALIBRATION"
+    }
+  },
+  "calibrated_rates": {
+    "tenant_cpu": 66.8,
+    "tenant_mix": 10.6,
+    "tenant_mem": 2.7,
+    "tenant_a_over": 11.7,
+    "tenant_b_over": 11.7,
+    "tenant_c_honest": 83.5,
+    "tenant_a_honest": 11.7,
+    "tenant_b_honest": 11.7,
+    "honest_tenant_a_honest": 11.7,
+    "honest_tenant_b_honest": 11.7,
+    "honest_tenant_c_honest": 11.7
+  },
+  "pool_capacity_cpu": 1.5,
+  "scenarios": {
+    "scenario_1_baseline": {
+      "tenant_cpu": {
+        "rate_rps": 66.8,
+        "demand_cores": 0.8
+      },
+      "tenant_mix": {
+        "rate_rps": 10.6,
+        "demand_cores": 0.45
+      },
+      "tenant_mem": {
+        "rate_rps": 2.7,
+        "demand_cores": 0.2
+      },
+      "total_demand_cores": 1.45,
+      "pool_pct": 96.7
+    },
+    "scenario_over_declaration": {
+      "tenant_a_over": {
+        "rate_rps": 11.7,
+        "demand_cores": 0.2
+      },
+      "tenant_b_over": {
+        "rate_rps": 11.7,
+        "demand_cores": 0.2
+      },
+      "tenant_c_honest": {
+        "rate_rps": 83.5,
+        "demand_cores": 1.0
+      },
+      "total_demand_cores": 1.4,
+      "pool_pct": 93.3
+    },
+    "scenario_honest_declaration": {
+      "tenant_a_honest": {
+        "rate_rps": 11.7,
+        "demand_cores": 0.5
+      },
+      "tenant_b_honest": {
+        "rate_rps": 11.7,
+        "demand_cores": 0.5
+      },
+      "tenant_c_honest": {
+        "rate_rps": 11.7,
+        "demand_cores": 0.5
+      },
+      "total_demand_cores": 1.5,
+      "pool_pct": 100.0
+    }
+  }
+}

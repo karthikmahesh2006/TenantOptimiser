@@ -226,6 +226,7 @@ async def main():
     for tid, (wtype, target_cpu) in honest_targets.items():
         s_cpu = results[wtype]["cpu_sec_per_req"]
         rate_rps = round(target_cpu / max(0.001, s_cpu), 1)
+        calibrated_rates[tid] = rate_rps
         calibrated_rates[f"honest_{tid}"] = rate_rps
 
     tot_honest_demand = sum(tgt for _, tgt in honest_targets.values())

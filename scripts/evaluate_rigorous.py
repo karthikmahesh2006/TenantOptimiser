@@ -31,6 +31,35 @@ async def run_scenario_benchmark(
 ) -> str:
     init_db()
     db = SessionLocal()
+
+    from alloc_platform.config import config
+    from alloc_platform.db.models import PoolModel, ScenarioModel
+    from alloc_platform.db.repo import upsert_pool
+
+    if not db.query(PoolModel).filter(PoolModel.id == "default_pool").first():
+        upsert_pool(
+            db,
+            "default_pool",
+            "Host Primary Pool",
+            cpu=config.default_pool_cpu,
+            mem_mb=config.default_pool_mem_mb,
+        )
+
+    scenarios = get_predefined_scenarios()
+    for sc_id, sc in scenarios.items():
+        if not db.query(ScenarioModel).filter(ScenarioModel.id == sc_id).first():
+            db.add(
+                ScenarioModel(
+                    id=sc_id,
+                    name=sc.name,
+                    duration_s=sc.duration_s,
+                    seed=sc.seed,
+                    pool_id="default_pool",
+                    spec_json=json.dumps({"name": sc.name}),
+                )
+            )
+    db.commit()
+
     exp_id = f"eval_{scenario_id[:10]}_{uuid.uuid4().hex[:6]}"
     scen_name = exp_name or f"Rigorous Evaluation: {scenario_id} ({repeats} repeats)"
 

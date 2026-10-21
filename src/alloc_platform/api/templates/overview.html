@@ -19,11 +19,13 @@
 <div class="grid-kpis">
   <div class="card">
     <div class="kpi-title">
-      Host Capacity
+      Tenant Pool Budget
       <span class="badge badge-configured">CONFIGURED</span>
     </div>
-    <div class="kpi-value">{{ pool.cpu_cores }} <span style="font-size: 1rem; font-weight: 500;">vCPU</span></div>
-    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">{{ pool.mem_mb }} MB Host RAM</div>
+    <div class="kpi-value">{{ pool.cpu_cores }} <span style="font-size: 1rem; font-weight: 500;">vCPU ({{ pool_cpu_ratio_pct }}%)</span></div>
+    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+      {{ pool.mem_mb }} MB RAM | Host: {{ host_vcpus }} vCPU / {{ host_mem_mb }} MB (25% host/API reservation)
+    </div>
   </div>
 
   <div class="card">

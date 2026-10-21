@@ -31,7 +31,13 @@ async def lifespan(app: FastAPI):
 
         # 3. Seed default pool and tenants if database is fresh
         if db.query(PoolModel).count() == 0:
-            upsert_pool(db, "default_pool", "Host Primary Pool", cpu=2.0, mem_mb=4096.0)
+            upsert_pool(
+                db,
+                "default_pool",
+                "Host Primary Pool (75% Budget)",
+                cpu=config.default_pool_cpu,
+                mem_mb=config.default_pool_mem_mb,
+            )
 
         scenarios = get_predefined_scenarios()
 

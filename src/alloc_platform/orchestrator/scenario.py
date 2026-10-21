@@ -47,8 +47,10 @@ class ScenarioSpec:
 
 def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
     """Returns the standard benchmark scenarios 1-4 and demo scenario."""
-    # Scenario 1: Heterogeneous Workload Baseline
-    scen1_pool = Pool(capacity={"cpu": 2.0, "mem_mb": 3072.0})
+    # Scenario 1: Heterogeneous Workload Baseline (Pool budget <= 75% of host capacity)
+    scen1_pool = Pool(
+        capacity={"cpu": config.default_pool_cpu, "mem_mb": config.default_pool_mem_mb}
+    )
     scen1_tenants = [
         Tenant(
             id="tenant_cpu",
@@ -99,10 +101,12 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
     ]
 
-    # Scenario 3: Host Capacity Degradation / Cut
+    # Scenario 3: Host Capacity Degradation / Cut (drops from 1.5 to 0.9 CPU cores)
     scen3_events = [
         TimedEvent(
-            t_sec=15, event_type="set_capacity", params={"capacity": {"cpu": 1.2, "mem_mb": 2048.0}}
+            t_sec=15,
+            event_type="set_capacity",
+            params={"capacity": {"cpu": 0.9, "mem_mb": 2048.0}},
         ),
     ]
 

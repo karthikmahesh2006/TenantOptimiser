@@ -18,9 +18,19 @@ class PlatformConfig(BaseModel):
     min_container_mem_mb: float = 32.0
     max_container_mem_mb: float = 16384.0
 
-    # Default pool allocation ratio (relative to detected host capacity)
+    # Host capacity and pool budget ratios (pool budget <= 75% of host by default)
+    host_vcpus: float = 2.0
+    host_mem_mb: float = 4096.0
     default_host_cpu_ratio: float = 0.75
-    default_host_mem_ratio: float = 0.60
+    default_host_mem_ratio: float = 0.75
+
+    @property
+    def default_pool_cpu(self) -> float:
+        return round(self.host_vcpus * self.default_host_cpu_ratio, 2)
+
+    @property
+    def default_pool_mem_mb(self) -> float:
+        return round(self.host_mem_mb * self.default_host_mem_ratio, 1)
 
     # Thresholds for run invalidation
     max_cpu_steal_pct: float = 5.0
@@ -29,6 +39,12 @@ class PlatformConfig(BaseModel):
     # Adaptive Allocator single-source constants
     memory_safety_mb: float = 64.0
     throttle_threshold: float = 0.05
+    max_shrink_per_epoch: float = 0.20
+    deadband: float = 0.05
+    min_dwell_s: float = 3.0
+    headroom_h: float = 0.20
+    ewma_alpha: float = 0.3
+    lambda_churn: float = 0.10
 
     # Enforcement & Docker
     alloc_mode: str = Field(

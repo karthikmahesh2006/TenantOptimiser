@@ -38,7 +38,10 @@ def page_overview(
     tenants = get_all_tenants(db)
     active_count = len([t for t in tenants if t.active])
     pool = db.query(PoolModel).first() or PoolModel(
-        id="default", name="Default Pool", cpu_cores=2.0, mem_mb=4096.0
+        id="default",
+        name="Tenant Pool (75% Budget)",
+        cpu_cores=config.default_pool_cpu,
+        mem_mb=config.default_pool_mem_mb,
     )
     experiments = get_all_experiments(db, limit=5)
 
@@ -58,6 +61,10 @@ def page_overview(
             "active_page": "overview",
             "user": user,
             "pool": pool,
+            "host_vcpus": config.host_vcpus,
+            "host_mem_mb": config.host_mem_mb,
+            "pool_cpu_ratio_pct": int(config.default_host_cpu_ratio * 100),
+            "pool_mem_ratio_pct": int(config.default_host_mem_ratio * 100),
             "tenants": tenants,
             "active_tenants_count": active_count,
             "total_tenants_count": len(tenants),
@@ -65,6 +72,7 @@ def page_overview(
             "latest_jain": latest_jain,
             "fallback_mode": fallback_mode,
             "simulated_mode": simulated_mode,
+            "config": config,
         },
     )
 

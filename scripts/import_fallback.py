@@ -72,10 +72,18 @@ def import_bundle(input_path: str = "data/recorded_fallback.json") -> None:
                     save_run_metrics(db, r_data["id"], r_data.get("metrics", {}), default_provenance="MEASURED")
         db.commit()
 
-        # Set fallback active flag
+        # Set fallback active flag and metadata
         os.makedirs("data", exist_ok=True)
         with open("data/fallback_active.flag", "w") as f:
             f.write(f"Active fallback from {input_path}")
+
+        meta = {
+            "recording_date": bundle.get("recording_date", "2026-10-14").split("T")[0],
+            "instance_type": bundle.get("instance_type", "c7i-flex.large"),
+            "provenance": bundle.get("provenance", "MEASURED"),
+        }
+        with open("data/fallback_metadata.json", "w", encoding="utf-8") as f:
+            json.dump(meta, f)
 
         print(f"Fallback bundle successfully imported from {input_path}. Banner activated.")
     finally:

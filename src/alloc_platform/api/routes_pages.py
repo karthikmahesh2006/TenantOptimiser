@@ -25,10 +25,64 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 
 
-def _get_modes() -> tuple[bool, bool]:
-    fallback_mode = os.path.exists("data/fallback_active.flag")
-    simulated_mode = (config.alloc_mode == "sim") or (not fallback_mode)
-    return fallback_mode, simulated_mode
+def _get_modes() -> tuple[str, dict]:
+    configured_mode = config.alloc_mode.lower()
+    fallback_flag = os.path.exists("data/fallback_active.flag")
+
+    meta = {
+        "recording_date": "2026-10-14",
+        "instance_type": "c7i-flex.large",
+    }
+    fb_path = "data/recorded_fallback.json"
+    if os.path.exists(fb_path):
+        try:
+            with open(fb_path, "r", encoding="utf-8") as f:
+                fb = json.load(f)
+                rec_date = fb.get("recording_date", "2026-10-14")
+                if "T" in rec_date:
+                    rec_date = rec_date.split("T")[0]
+                meta["recording_date"] = rec_date
+                meta["instance_type"] = fb.get("instance_type", "c7i-flex.large")
+        except Exception:
+            pass
+    elif os.path.exists("data/fallback_metadata.json"):
+        try:
+            with open("data/fallback_metadata.json", "r", encoding="utf-8") as f:
+                meta.update(json.load(f))
+        except Exception:
+            pass
+
+    if configured_mode == "sim":
+        mode = "sim"
+    elif configured_mode == "recorded":
+        mode = "recorded"
+    elif configured_mode == "live":
+        mode = "live"
+    else:  # "auto"
+        if fallback_flag:
+            mode = "recorded"
+        else:
+            try:
+                import docker
+                client = docker.from_env()
+                client.ping()
+                if os.path.exists("/sys/fs/cgroup/cgroup.controllers"):
+                    mode = "live"
+                else:
+                    mode = "sim"
+            except Exception:
+                mode = "sim"
+    return mode, meta
+
+
+def _mode_context() -> dict:
+    mode, meta = _get_modes()
+    return {
+        "mode": mode,
+        "fallback_metadata": meta,
+        "fallback_mode": (mode == "recorded"),
+        "simulated_mode": (mode == "sim"),
+    }
 
 
 @pages_router.get("/", response_class=HTMLResponse)
@@ -52,28 +106,27 @@ def page_overview(
             m = get_run_metrics(db, latest_run.id)
             latest_jain = m.get("jain_fairness_primary")
 
-    fallback_mode, simulated_mode = _get_modes()
+    ctx = {
+        "active_page": "overview",
+        "user": user,
+        "pool": pool,
+        "host_vcpus": config.host_vcpus,
+        "host_mem_mb": config.host_mem_mb,
+        "pool_cpu_ratio_pct": int(config.default_host_cpu_ratio * 100),
+        "pool_mem_ratio_pct": int(config.default_host_mem_ratio * 100),
+        "tenants": tenants,
+        "active_tenants_count": active_count,
+        "total_tenants_count": len(tenants),
+        "experiments": experiments,
+        "latest_jain": latest_jain,
+        "config": config,
+    }
+    ctx.update(_mode_context())
 
     return templates.TemplateResponse(
         request=request,
         name="overview.html",
-        context={
-            "active_page": "overview",
-            "user": user,
-            "pool": pool,
-            "host_vcpus": config.host_vcpus,
-            "host_mem_mb": config.host_mem_mb,
-            "pool_cpu_ratio_pct": int(config.default_host_cpu_ratio * 100),
-            "pool_mem_ratio_pct": int(config.default_host_mem_ratio * 100),
-            "tenants": tenants,
-            "active_tenants_count": active_count,
-            "total_tenants_count": len(tenants),
-            "experiments": experiments,
-            "latest_jain": latest_jain,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-            "config": config,
-        },
+        context=ctx,
     )
 
 
@@ -82,47 +135,44 @@ def page_tenants(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     tenants = get_all_tenants(db)
-    fallback_mode, simulated_mode = _get_modes()
+    ctx = {
+        "active_page": "tenants",
+        "user": user,
+        "tenants": tenants,
+    }
+    ctx.update(_mode_context())
     return templates.TemplateResponse(
         request=request,
         name="tenants.html",
-        context={
-            "active_page": "tenants",
-            "user": user,
-            "tenants": tenants,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-        },
+        context=ctx,
     )
 
 
 @pages_router.get("/experiment-config", response_class=HTMLResponse)
 def page_config(request: Request, user: User = Depends(get_current_user)):
-    fallback_mode, simulated_mode = _get_modes()
+    ctx = {
+        "active_page": "config",
+        "user": user,
+    }
+    ctx.update(_mode_context())
     return templates.TemplateResponse(
         request=request,
         name="experiment_config.html",
-        context={
-            "active_page": "config",
-            "user": user,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-        },
+        context=ctx,
     )
 
 
 @pages_router.get("/live-console", response_class=HTMLResponse)
 def page_console(request: Request, user: User = Depends(get_current_user)):
-    fallback_mode, simulated_mode = _get_modes()
+    ctx = {
+        "active_page": "console",
+        "user": user,
+    }
+    ctx.update(_mode_context())
     return templates.TemplateResponse(
         request=request,
         name="live_console.html",
-        context={
-            "active_page": "console",
-            "user": user,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-        },
+        context=ctx,
     )
 
 
@@ -133,8 +183,6 @@ def page_compare(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    fallback_mode, simulated_mode = _get_modes()
-
     exp = None
     if experiment_id:
         exp = db.query(Experiment).filter(Experiment.id == experiment_id).first()
@@ -179,17 +227,18 @@ def page_compare(
                 "non_tenant_cpu": m.get("non_tenant_cpu_cores_avg", 0.0),
             }
 
+    ctx = {
+        "active_page": "compare",
+        "user": user,
+        "experiment": exp,
+        "metrics_summary": metrics_summary,
+    }
+    ctx.update(_mode_context())
+
     return templates.TemplateResponse(
         request=request,
         name="compare.html",
-        context={
-            "active_page": "compare",
-            "user": user,
-            "experiment": exp,
-            "metrics_summary": metrics_summary,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-        },
+        context=ctx,
     )
 
 
@@ -198,32 +247,30 @@ def page_history(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ):
     experiments = get_all_experiments(db, limit=20)
-    fallback_mode, simulated_mode = _get_modes()
+    ctx = {
+        "active_page": "history",
+        "user": user,
+        "experiments": experiments,
+    }
+    ctx.update(_mode_context())
     return templates.TemplateResponse(
         request=request,
         name="history.html",
-        context={
-            "active_page": "history",
-            "user": user,
-            "experiments": experiments,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-        },
+        context=ctx,
     )
 
 
 @pages_router.get("/architecture", response_class=HTMLResponse)
 def page_architecture(request: Request, user: User = Depends(get_current_user)):
-    fallback_mode, simulated_mode = _get_modes()
+    ctx = {
+        "active_page": "architecture",
+        "user": user,
+    }
+    ctx.update(_mode_context())
     return templates.TemplateResponse(
         request=request,
         name="architecture.html",
-        context={
-            "active_page": "architecture",
-            "user": user,
-            "fallback_mode": fallback_mode,
-            "simulated_mode": simulated_mode,
-        },
+        context=ctx,
     )
 
 

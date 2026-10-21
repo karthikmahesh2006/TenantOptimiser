@@ -52,3 +52,6 @@ desktop.ini
 *~
 alloc.db*
 bootstrap_admin.txt
+data/diagnostics/
+data/*.flag
+

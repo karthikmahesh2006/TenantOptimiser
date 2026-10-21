@@ -11,6 +11,7 @@ from alloc_platform.api.auth import bootstrap_admin_user
 from alloc_platform.api.routes_api import api_router
 from alloc_platform.api.routes_pages import pages_router
 from alloc_platform.api.routes_reports import reports_router
+from alloc_platform.config import config
 from alloc_platform.db.models import PoolModel, ScenarioModel, TenantModel
 from alloc_platform.db.repo import upsert_pool, upsert_tenant
 from alloc_platform.db.session import SessionLocal, init_db
@@ -23,6 +24,18 @@ from alloc_platform.orchestrator.scenario import get_predefined_scenarios
 async def lifespan(app: FastAPI):
     # 1. Initialize SQLite schema
     init_db()
+
+    # 1b. If recorded mode, ensure fallback bundle is loaded
+    if config.alloc_mode.lower() == "recorded":
+        import os
+        from scripts.import_fallback import import_bundle
+        fb_path = "data/recorded_fallback.json"
+        if os.path.exists(fb_path):
+            try:
+                import_bundle(fb_path)
+            except Exception:
+                pass
+
 
     # 2. Recover any stale locks left from prior daemon shutdown
     db = SessionLocal()

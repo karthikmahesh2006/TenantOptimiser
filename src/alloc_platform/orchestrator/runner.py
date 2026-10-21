@@ -92,10 +92,10 @@ async def execute_experiment_async(experiment_id: str) -> None:
         policies: List[str] = json.loads(exp.policies_json)
         rng = np.random.default_rng(scen_spec.seed)
 
-        # Check execution mode: live | sim | auto
+        # Check execution mode: live | recorded | sim | auto
         alloc_mode = config.alloc_mode.lower()
-        if alloc_mode not in ("live", "sim", "auto"):
-            raise ValueError(f"Invalid ALLOC_MODE={config.alloc_mode}. Must be 'live', 'sim', or 'auto'.")
+        if alloc_mode not in ("live", "recorded", "sim", "auto"):
+            raise ValueError(f"Invalid ALLOC_MODE={config.alloc_mode}. Must be 'live', 'recorded', 'sim', or 'auto'.")
 
         docker_available = False
         enforcer: Optional[DockerEnforcer] = None
@@ -105,6 +105,7 @@ async def execute_experiment_async(experiment_id: str) -> None:
             docker_available = True
         except Exception:
             docker_available = False
+
 
         if alloc_mode == "live":
             if not docker_available:
@@ -119,7 +120,7 @@ async def execute_experiment_async(experiment_id: str) -> None:
                     "but cgroup.controllers was not found. Run aborted."
                 )
             active_enforcer = enforcer
-        elif alloc_mode == "sim":
+        elif alloc_mode in ("recorded", "sim"):
             active_enforcer = None
         else:  # "auto" for local development
             active_enforcer = enforcer if docker_available else None

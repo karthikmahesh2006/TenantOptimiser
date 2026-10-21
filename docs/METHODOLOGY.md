@@ -53,19 +53,55 @@ The adaptive policy balances dynamic efficiency with operational stability:
    - Tenant pool budget is restricted to at most $75\%$ (`config.default_host_cpu_ratio = 0.75`, `config.default_host_mem_ratio = 0.75`) of host vCPU and RAM, reserving $25\%$ outside the pool for the host OS, API server, load generator, and cgroup sampler.
 
 ## 3. Metrics & Provenance Definitions
-
+ 
 | Metric | Provenance | Mathematical Definition | Interpretation |
 |---|---|---|---|
-| Jain's Satisfaction Index (Primary) | `CALCULATED` | $J(s_1/w_1, \dots, s_N/w_N) = \frac{(\sum s_i/w_i)^2}{N \sum (s_i/w_i)^2}$ | Evaluates equal satisfaction per unit weight. |
-| Jain's Dominant Share (Secondary) | `CALCULATED` | $J(\widetilde{d}_1, \dots, \widetilde{d}_N)$ | Evaluates classical DRF share equality. |
-| Bottleneck Satisfaction | `CALCULATED` | $s_i = \min_{r: D_{i, r} > 0} (x_{i, r} / D_{i, r})$ | Fractional demand fulfillment. |
+| On-Time Ratio (Headline) | `MEASURED` | $\frac{\text{Completed within Deadline}}{\text{Total Offered Requests}}$ | Headline efficiency metric. Requests rejected (429) or censored (timeout) count as failures. |
+| Hardware Throttle Ratio | `MEASURED` | $\frac{\text{cgroup throttled\_usec}}{\text{throttled\_usec} + \text{usage\_usec}}$ | Fraction of CPU active work time tenant was constrained by CFS. |
+| Deadline Miss Rate | `MEASURED` | $\frac{\text{Completed with Latency} > \text{Deadline}}{\text{Total Completed Requests}}$ | Application-level SLA miss rate for serviced requests. |
+| Jain's Satisfaction Index | `CALCULATED` | $J(s_1/w_1, \dots, s_N/w_N) = \frac{(\sum s_i/w_i)^2}{N \sum (s_i/w_i)^2}$ | Evaluates equal satisfaction per unit weight against contractual declared demand. |
+| Mean Satisfaction | `CALCULATED` | $\frac{1}{N} \sum_{i=1}^N \min_r (x_{i, r} / D_{i, r})$ | Fractional contractual demand fulfillment. Denominator is DECLARED demand. |
 | Consumed Utilization | `MEASURED` | $\sum_i u_{i, r} / C_r$ | Real physical usage from cgroup v2. |
-| Useful Goodput | `MEASURED` | Completed tasks within deadline / Total requests | Real workload efficiency. |
-| Allocation Churn | `CALCULATED` | $\frac{1}{K-1} \sum_k \sum_{i, r} \frac{\|x_{i, r}^{(k)} - x_{i, r}^{(k-1)}\|}{C_r}$ | Control loop volatility. |
+| Allocated Utilization | `CALCULATED` | $\sum_i x_{i, r} / C_r$ | Quota reserved by allocator relative to pool capacity. |
+| Idle Reserved Capacity | `CALCULATED` | $\sum_i \max(0, x_{i, r} - u_{i, r})$ | Quota allocated but unconsumed by container. |
+| Allocation Churn | `CALCULATED` | $\frac{1}{K-1} \sum_k \sum_{i, r} \frac{\|x_{i, r}^{(k)} - x_{i, r}^{(k-1)}\|}{C_r}$ | Control loop volatility between consecutive epochs. |
+| Solve Time | `MEASURED` | Absolute solver duration (ms) and fraction of epoch (%) | Algorithmic execution latency per epoch. |
+| Throttled-While-Unallocated | `MEASURED` | Fraction of epochs where a tenant is throttled while pool allocation $< 95\%$ | Hardware inefficiency metric: spare capacity left idle while containers throttle. |
+| Time-to-Convergence | `MEASURED` | Epochs until allocation delta stays within deadband after start or event | Control stabilization latency. |
 
 ## 4. Run Invalidation & Experimental Controls
 To ensure repeatable scientific rigor:
+- **Host Reservation Guard**: Non-tenant CPU (API, loadgen, telemetry sampler) must remain $\le 25\%$ of host capacity ($0.50\text{ vCPU}$). Runs exceeding this threshold are flagged `INVALID (non-tenant overhead exceeded host reservation)`.
 - **Steal Monitoring**: If host CPU steal percentage exceeds $5.0\%$ during an epoch, the run is flagged `INVALID (excessive noisy neighbor steal)`.
-- **Burstable Credits**: On burstable instances, runs falling below 10 CPU credits are flagged invalid.
 - **Unexpected OOM**: Container terminations with exit code 137 are recorded and invalidate the run.
 - **Randomized Policy Ordering**: Repeat blocks shuffle allocator execution order to prevent thermal throttling bias.
+
+## 5. Pre-Stated Scientific Hypotheses
+
+The experimental evaluation tests four formal hypotheses:
+
+- **Hypothesis H1 (Over-Declaration & Usage-Aware Efficiency)**:
+  Under over-declared demand (static demand overestimating true utilization), usage-aware dynamic allocation (Adaptive) reclaims unutilized capacity from idle tenants and redistributes it to constrained tenants, achieving significantly higher on-time completion ($\text{on\_time\_ratio}$), higher throughput, and lower p95 latency compared to static demand-based baselines (FCFS, WP, DRF).
+  *Favours Adaptive.*
+
+- **Hypothesis H2 (Workload Burst Adaptation)**:
+  During unexpected workload bursts, dynamic estimation with fast-up escalation and surplus harvesting tracks transient demand spikes, reducing throttle duration and deadline misses compared to static allocations.
+
+- **Hypothesis H3 (Honest Declaration Neutrality or Degradation)**:
+  When tenants declare honest demand matching their true usage under heavy load, static baselines (DRF, WP) operate near their optimal theoretical allocations. Under these conditions, Adaptive dynamic estimation provides no surplus to reclaim, and the overhead of dynamic tracking (solve latency, stability damping, contraction caps) yields neutral or slightly worse goodput/latency than static baselines.
+  *Neutral or favours baselines. Reported with equal prominence.*
+
+- **Hypothesis H4 (Bounded Stability & Low Overhead)**:
+  Dynamic limit adjustments in Adaptive can be bounded by stability filtering (deadband, min dwell, contraction cap) such that churn remains low, solve time stays well below $1\%$ of the control epoch ($< 10\text{ ms}$ on a $1000\text{ ms}$ epoch), and container thrashing or memory OOMs are completely avoided.
+
+## 6. Predefined Evaluation Scenarios
+
+| Scenario Identifier | Focus & Hypothesis Tested | Tenant Configurations | Expected Outcome |
+|---|---|---|---|
+| `scenario_1_baseline` | Heterogeneous multi-resource baseline | 3 tenants: CPU-heavy ($1.2\text{c}$), Memory-heavy ($2048\text{M}$), Mixed ($0.8\text{c}$) | DRF balances dominant shares; Adaptive tracks physical usage. |
+| `scenario_2_burst` | Hypothesis H2: Flash crowd burst | CPU worker bursts from $1.2\text{c}$ to $1.8\text{c}$ at $t=10\text{s}$, returns at $t=20\text{s}$ | Adaptive tracks burst via fast-up; baselines remain static. |
+| `scenario_3_capacity_cut` | Robustness under host degradation | Physical host pool cut from $1.5\text{c}$ to $0.9\text{c}$ at $t=15\text{s}$ | All policies downscale; tests minimum guarantee preservation. |
+| `scenario_4_churn` | Dynamic tenant lifecycle | Mixed service arrives at $t=10\text{s}$, departs at $t=20\text{s}$ | Tests admission control, churn penalty, and deallocation speed. |
+| `scenario_over_declaration` | Hypothesis H1: Asymmetric over-declaration | Tenants A and B declare $1.2\text{c}$ each but use $\approx 0.2\text{c}$; Tenant C genuinely needs $\approx 1.0\text{c}$ | Baselines waste $\approx 0.66\text{c}$ idle on A & B while C throttles. Adaptive reclaims idle capacity for C. |
+| `scenario_honest_declaration` | Hypothesis H3: Saturated honest load | Tenants A, B, C each declare $0.5\text{c}$ and use $\approx 0.5\text{c}$ (total = $1.5\text{c} = 100\%$ pool) | Baselines allocate optimally ($0.5\text{c}$ each). Adaptive has no surplus to harvest; neutral or slightly worse. |
+

@@ -89,6 +89,25 @@ def test_scenario_validation_caps():
         assert len(scen.tenants) <= 10
 
 
+def test_over_and_honest_scenarios_exist():
+    """Verify scenario_over_declaration and scenario_honest_declaration are defined with expected properties."""
+    scenarios = get_predefined_scenarios()
+    assert "scenario_over_declaration" in scenarios
+    assert "scenario_honest_declaration" in scenarios
+
+    over_scen = scenarios["scenario_over_declaration"]
+    over_scen.validate()
+    t_over_map = {t.id: t for t in over_scen.tenants}
+    assert t_over_map["tenant_a_over"].demand["cpu"] == 1.2
+    assert t_over_map["tenant_b_over"].demand["cpu"] == 1.2
+    assert t_over_map["tenant_c_honest"].demand["cpu"] == 1.0
+
+    honest_scen = scenarios["scenario_honest_declaration"]
+    honest_scen.validate()
+    for t in honest_scen.tenants:
+        assert t.demand["cpu"] == 0.5
+
+
 @pytest.mark.asyncio
 async def test_alloc_mode_live_failure_when_docker_absent(monkeypatch):
     """Verify that ALLOC_MODE=live fails cleanly when Docker daemon is not available."""

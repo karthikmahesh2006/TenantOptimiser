@@ -48,10 +48,16 @@ def build_trace(
         curr_t = t_start
         req_counter = 0
 
+        t_rate = (
+            base_rate_rps.get(tid, 2.0)
+            if isinstance(base_rate_rps, dict)
+            else getattr(t, "arrival_rate_rps", base_rate_rps)
+        )
+
         while curr_t < t_end:
             # Check if inside an active burst window
             in_burst = any(b_start <= curr_t <= b_end for b_start, b_end in t_bursts)
-            lambda_rate = base_rate_rps * (burst_multiplier if in_burst else 1.0)
+            lambda_rate = t_rate * (burst_multiplier if in_burst else 1.0)
 
             # Exponential inter-arrival interval
             delta_t = rng.exponential(1.0 / max(0.1, lambda_rate))
@@ -71,6 +77,11 @@ def build_trace(
                 mem_m = 128.0 + 16.0 * rng.uniform(-1.0, 1.0)
                 hold = 50.0
                 nominal_ms = 60.0
+            elif wtype == "low_cpu":
+                cpu_u = 0.2 + 0.05 * rng.uniform(-1.0, 1.0)
+                mem_m = 32.0
+                hold = 0.0
+                nominal_ms = 15.0
             else:  # mixed
                 cpu_u = 0.5 + 0.1 * rng.uniform(-1.0, 1.0)
                 mem_m = 64.0 + 10.0 * rng.uniform(-1.0, 1.0)

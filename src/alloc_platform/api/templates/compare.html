@@ -58,15 +58,16 @@
       <tr>
         <th>Allocation Policy</th>
         <th>Jain Fairness<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Satisfaction / Weight</span> <span class="badge badge-calculated">CALCULATED</span></th>
-        <th>Mean Satisfaction<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Denominator: Declared</span> <span class="badge badge-calculated">CALCULATED</span></th>
-        <th>Unmet Actual Need<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Throttle % | Miss %</span> <span class="badge badge-measured">MEASURED</span></th>
+        <th>Mean Satisfaction<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Denom: Declared Demand</span> <span class="badge badge-calculated">CALCULATED</span></th>
+        <th style="background: rgba(16, 185, 129, 0.08);">On-Time Ratio (Headline)<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Denom: Total Offered</span> <span class="badge badge-measured">MEASURED</span></th>
+        <th>Hardware Throttle<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Denom: Active Work Time</span> <span class="badge badge-measured">MEASURED</span></th>
+        <th>Deadline Miss Rate<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Denom: Completed Reqs</span> <span class="badge badge-measured">MEASURED</span></th>
         <th>Idle Reserved<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU / RAM Idle</span> <span class="badge badge-calculated">CALCULATED</span></th>
-        <th>Allocated Util<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU / RAM Reserved</span> <span class="badge badge-calculated">CALCULATED</span></th>
-        <th>Consumed Util<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU / RAM Active</span> <span class="badge badge-measured">MEASURED</span></th>
+        <th>Allocated / Consumed<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">CPU Utilisation</span></th>
         <th>Churn / Changes <span class="badge badge-calculated">CALCULATED</span></th>
         <th>Solve Time<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">ms (% of epoch)</span> <span class="badge badge-measured">MEASURED</span></th>
         <th>Throughput <span class="badge badge-measured">MEASURED</span></th>
-        <th>Latency (Mean/p95) <span class="badge badge-measured">MEASURED</span></th>
+        <th>Latency (Mean / p95)<br><span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Completed [Excl Rej+Cens]</span> <span class="badge badge-measured">MEASURED</span></th>
       </tr>
     </thead>
     <tbody>
@@ -76,18 +77,19 @@
           <td><strong>{{ pol.upper() }}</strong></td>
           <td>{{ "%.4f"|format(m.jain) }}</td>
           <td>{{ "%.4f"|format(m.satis) }}</td>
-          <td>{{ "%.1f"|format(m.throttle_time_ratio) }}% | {{ "%.1f"|format(m.deadline_miss_rate) }}%</td>
+          <td style="color: var(--accent-green); font-weight: 700; background: rgba(16, 185, 129, 0.05);">{{ "%.1f"|format(m.on_time_ratio) }}%</td>
+          <td>{{ "%.1f"|format(m.throttle_time_ratio) }}%</td>
+          <td>{{ "%.1f"|format(m.deadline_miss_rate) }}%</td>
           <td>{{ "%.2f"|format(m.idle_cpu) }}c / {{ "%.0f"|format(m.idle_mem) }}M</td>
-          <td>{{ "%.1f"|format(m.alloc_cpu) }}% / {{ "%.1f"|format(m.alloc_mem) }}%</td>
-          <td>{{ "%.1f"|format(m.cons_cpu) }}% / {{ "%.1f"|format(m.cons_mem) }}%</td>
+          <td>{{ "%.1f"|format(m.alloc_cpu) }}% / {{ "%.1f"|format(m.cons_cpu) }}%</td>
           <td>{{ "%.3f"|format(m.churn) }} ({{ "%.0f"|format(m.changes_count) }})</td>
           <td>{{ "%.2f"|format(m.solve_ms) }} ms ({{ "%.2f"|format(m.solve_epoch_pct) }}%)</td>
           <td>{{ "%.2f"|format(m.throughput) }} req/s</td>
-          <td>{{ "%.1f"|format(m.mean_latency_ms) }} / {{ "%.1f"|format(m.p95_latency_ms) }} ms</td>
+          <td>{{ "%.1f"|format(m.mean_latency_ms) }} / {{ "%.1f"|format(m.p95_latency_ms) }} ms <span style="font-size: 0.75rem; color: var(--text-secondary);">[{{ "%.0f"|format(m.excluded_count) }} excl]</span></td>
         </tr>
         {% endfor %}
       {% else %}
-        <tr><td colspan="11" style="text-align: center; color: var(--text-secondary); padding: 1.5rem;">No completed experiment benchmarks found in database. Run a live demo or scenario benchmark to view results.</td></tr>
+        <tr><td colspan="12" style="text-align: center; color: var(--text-secondary); padding: 1.5rem;">No completed experiment benchmarks found in database. Run a live demo or scenario benchmark to view results.</td></tr>
       {% endif %}
     </tbody>
   </table>

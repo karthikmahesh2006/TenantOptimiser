@@ -762,21 +762,26 @@ def _compute_and_save_run_metrics(
 
     # Request-level metrics
     samples = req_samples or []
+    total_offered = len(samples)
     completed_samples = [s for s in samples if s.status in ("ok", "deadline_missed")]
     completed_count = len(completed_samples)
+    on_time_count = sum(1 for s in completed_samples if s.status == "ok")
     missed_count = sum(1 for s in samples if s.status == "deadline_missed")
     rejected_count = sum(1 for s in samples if s.status == "rejected")
     censored_count = sum(1 for s in samples if getattr(s, "is_censored", False) or s.status == "timeout")
+    excluded_count = rejected_count + censored_count
     latencies = [s.latency_ms for s in completed_samples]
 
+    on_time_ratio = (on_time_count / total_offered) if total_offered > 0 else 1.0
     tp = completed_count / max(1.0, duration_s)
-    cr = (completed_count / len(samples)) if samples else 1.0
+    cr = (completed_count / total_offered) if total_offered > 0 else 1.0
     mr = (missed_count / completed_count) if completed_count > 0 else 0.0
     mean_lat = float(np.mean(latencies)) if latencies else 0.0
     p95_lat = float(np.percentile(latencies, 95)) if latencies else 0.0
 
     metrics_map.update(
         {
+            "on_time_ratio": float(on_time_ratio),
             "completed": float(completed_count),
             "throughput": tp,
             "completion_ratio": cr,
@@ -784,6 +789,7 @@ def _compute_and_save_run_metrics(
             "deadline_miss_rate": mr,
             "rejected": float(rejected_count),
             "censored": float(censored_count),
+            "excluded_count": float(excluded_count),
             "mean_latency_ms": mean_lat,
             "p95_latency_ms": p95_lat,
             "oom_kills": float(oom_kills_count),
@@ -794,15 +800,19 @@ def _compute_and_save_run_metrics(
     oom_per_t = oom_kills_per_tenant or {}
     for t in active_tenants:
         t_samples = [s for s in samples if s.tenant_id == t.id]
+        t_total_offered = len(t_samples)
         t_completed = [s for s in t_samples if s.status in ("ok", "deadline_missed")]
         t_comp_count = len(t_completed)
+        t_on_time_count = sum(1 for s in t_completed if s.status == "ok")
         t_miss_count = sum(1 for s in t_samples if s.status == "deadline_missed")
         t_rej_count = sum(1 for s in t_samples if s.status == "rejected")
         t_censored_count = sum(1 for s in t_samples if getattr(s, "is_censored", False) or s.status == "timeout")
+        t_excluded_count = t_rej_count + t_censored_count
         t_lats = [s.latency_ms for s in t_completed]
 
+        t_on_time_ratio = (t_on_time_count / t_total_offered) if t_total_offered > 0 else 1.0
         t_tp = t_comp_count / max(1.0, duration_s)
-        t_cr = (t_comp_count / len(t_samples)) if t_samples else 1.0
+        t_cr = (t_comp_count / t_total_offered) if t_total_offered > 0 else 1.0
         t_mr = (t_miss_count / t_comp_count) if t_comp_count > 0 else 0.0
         t_mean_lat = float(np.mean(t_lats)) if t_lats else 0.0
         t_p95_lat = float(np.percentile(t_lats, 95)) if t_lats else 0.0
@@ -812,6 +822,7 @@ def _compute_and_save_run_metrics(
         t_th = cgroup_th.get(t.id, 0.0)
         t_throttle_ratio = (t_th / (t_u + t_th)) if (t_u + t_th) > 0.0 else 0.0
 
+        metrics_map[f"tenant:{t.id}:on_time_ratio"] = float(t_on_time_ratio)
         metrics_map[f"tenant:{t.id}:completed"] = float(t_comp_count)
         metrics_map[f"tenant:{t.id}:throughput"] = t_tp
         metrics_map[f"tenant:{t.id}:completion_ratio"] = t_cr
@@ -819,6 +830,7 @@ def _compute_and_save_run_metrics(
         metrics_map[f"tenant:{t.id}:deadline_miss_rate"] = t_mr
         metrics_map[f"tenant:{t.id}:rejected"] = float(t_rej_count)
         metrics_map[f"tenant:{t.id}:censored"] = float(t_censored_count)
+        metrics_map[f"tenant:{t.id}:excluded_count"] = float(t_excluded_count)
         metrics_map[f"tenant:{t.id}:mean_latency_ms"] = t_mean_lat
         metrics_map[f"tenant:{t.id}:p95_latency_ms"] = t_p95_lat
         metrics_map[f"tenant:{t.id}:oom_kills"] = t_oom

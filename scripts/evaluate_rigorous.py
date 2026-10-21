@@ -120,9 +120,9 @@ def print_comparison_table(scenario_name: str, analysis: Dict[str, Any]):
         print(f"  [RUN AUDIT] All {valid_runs} runs valid (host reservation <= 25%, steal <= 5.0%, OOM kills == 0)")
     print("=" * 140)
     print(
-        f"{'Policy':<18} | {'Jain (CALC)':<20} | {'Satisfaction (CALC)':<22} | {'Unmet (Throt|Miss)':<20} | {'Idle CPU (CALC)':<16} | {'Consumed CPU':<20} | {'Throughput':<18} | {'Solve Time':<24}"
+        f"{'Policy':<16} | {'Jain (CALC)':<18} | {'Satis (CALC)':<18} | {'On-Time (Headline)':<22} | {'Unmet (Throt|Miss)':<20} | {'Idle CPU':<12} | {'Cons CPU':<16} | {'Throughput':<16} | {'p95 Latency [Excl]':<22} | {'Solve Time':<20}"
     )
-    print("-" * 140)
+    print("-" * 195)
 
     from alloc_platform.config import config
     epoch_ms = config.epoch_interval_s * 1000.0
@@ -130,34 +130,39 @@ def print_comparison_table(scenario_name: str, analysis: Dict[str, Any]):
     for pol, m_dict in stats.items():
         jain = m_dict.get("jain_fairness_primary", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
         satis = m_dict.get("mean_satisfaction", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
+        on_time = m_dict.get("on_time_ratio", {"mean": 1.0, "ci_lower": 1.0, "ci_upper": 1.0})
         throt = m_dict.get("throttle_time_ratio", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
         miss = m_dict.get("deadline_miss_rate", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
         idle_c = m_dict.get("idle_reserved_cpu", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
         cons = m_dict.get("consumed_util_cpu", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
         tp = m_dict.get("throughput", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
+        p95 = m_dict.get("p95_latency_ms", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
+        excl = m_dict.get("excluded_count", {"mean": 0.0})["mean"]
         solve = m_dict.get("solve_ms_avg", {"mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0})
 
         # Deterministic formula-based metrics for baselines: show as exact formula properties without CI
         is_deterministic_baseline = pol.lower() in ("fcfs", "proportional", "drf", "wp")
         if is_deterministic_baseline:
-            jain_str = f"{jain['mean']:.3f} (CALCULATED)"
-            satis_str = f"{satis['mean']:.3f} (CALCULATED)"
+            jain_str = f"{jain['mean']:.3f} (CALC)"
+            satis_str = f"{satis['mean']:.3f} (CALC)"
         else:
             jain_str = f"{jain['mean']:.3f} [{jain['ci_lower']:.3f}, {jain['ci_upper']:.3f}]"
             satis_str = f"{satis['mean']:.3f} [{satis['ci_lower']:.3f}, {satis['ci_upper']:.3f}]"
 
+        on_time_str = f"{on_time['mean']*100:.1f}% [{on_time['ci_lower']*100:.1f}%, {on_time['ci_upper']*100:.1f}%]"
         unmet_str = f"{throt['mean']*100:.1f}% | {miss['mean']*100:.1f}%"
         idle_str = f"{idle_c['mean']:.2f} cores"
         cons_str = f"{cons['mean']*100:.1f}% [{cons['ci_lower']*100:.1f}%, {cons['ci_upper']*100:.1f}%]"
         tp_str = f"{tp['mean']:.2f} [{tp['ci_lower']:.2f}, {tp['ci_upper']:.2f}] req/s"
+        p95_str = f"{p95['mean']:.1f} ms [{excl:.0f} excl]"
         solve_pct = (solve['mean'] / max(1.0, epoch_ms)) * 100.0
-        solve_str = f"{solve['mean']:.2f} ms ({solve_pct:.2f}% epoch)"
+        solve_str = f"{solve['mean']:.2f} ms ({solve_pct:.2f}%)"
 
         print(
-            f"{pol.upper():<18} | {jain_str:<20} | {satis_str:<22} | {unmet_str:<20} | {idle_str:<16} | {cons_str:<20} | {tp_str:<18} | {solve_str:<24}"
+            f"{pol.upper():<16} | {jain_str:<18} | {satis_str:<18} | {on_time_str:<22} | {unmet_str:<20} | {idle_str:<12} | {cons_str:<16} | {tp_str:<16} | {p95_str:<22} | {solve_str:<20}"
         )
 
-    print("-" * 140)
+    print("-" * 195)
 
     # Relative comparison vs baselines (Item 7 & A6: no relative solve overhead percentage)
     if "adaptive" in stats:

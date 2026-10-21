@@ -164,6 +164,7 @@ def page_compare(
                 "changes_count": m.get("changes_count", 0.0),
                 "solve_ms": m.get("solve_ms_avg", 0.0),
                 "solve_epoch_pct": m.get("solve_time_epoch_pct", (m.get("solve_ms_avg", 0.0) / 1000.0) * 100.0),
+                "on_time_ratio": m.get("on_time_ratio", 0.0) * 100.0,
                 "completed": m.get("completed", 0.0),
                 "throughput": m.get("throughput", 0.0),
                 "completion_ratio": m.get("completion_ratio", 0.0),
@@ -173,6 +174,7 @@ def page_compare(
                 "mean_latency_ms": m.get("mean_latency_ms", 0.0),
                 "p95_latency_ms": m.get("p95_latency_ms", 0.0),
                 "censored": m.get("censored", 0.0),
+                "excluded_count": m.get("excluded_count", 0.0),
                 "oom_kills": m.get("oom_kills", 0.0),
                 "non_tenant_cpu": m.get("non_tenant_cpu_cores_avg", 0.0),
             }

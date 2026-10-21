@@ -4,7 +4,7 @@
 [![Architecture: cgroup v2](https://img.shields.io/badge/cgroup-v2-green.svg)](https://docs.kernel.org/admin-guide/cgroup-v2.html)
 [![Security: 0-Inbound SSM](https://img.shields.io/badge/security-0--inbound--SSM-orange.svg)](docs/SECURITY.md)
 
-An empirical research platform comparing cloud resource allocation algorithms on real Docker containers executing on an AWS EC2 host under cgroup v2. The platform measures physical consumption, throttling, latency, and goodput, and provides an interactive web UI with strict provenance tracking.
+An empirical research prototype comparing cloud resource allocation algorithms on real Docker containers executing on an AWS EC2 host under cgroup v2. The platform measures physical consumption, throttling, latency, and goodput, and provides an interactive web UI with strict provenance tracking.
 
 ---
 

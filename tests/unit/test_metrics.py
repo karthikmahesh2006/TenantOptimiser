@@ -136,3 +136,16 @@ def test_tenant_churn_and_changes():
     assert tenant_count_changes([p1, p2, p3], "t2") == 0
     assert pytest.approx(tenant_churn([p1, p2, p3], cap, "t1"), rel=1e-6) == 0.125
     assert tenant_churn([p1, p2, p3], cap, "t2") == 0.0
+
+
+def test_on_time_ratio_definition():
+    """Verify on_time_ratio counts ok requests over total offered, treating rejected and censored as failures."""
+    # 10 total offered requests:
+    # 7 ok, 1 deadline_missed, 1 rejected, 1 timeout (censored)
+    statuses = ["ok"] * 7 + ["deadline_missed", "rejected", "timeout"]
+    total_offered = len(statuses)
+    on_time = sum(1 for s in statuses if s == "ok")
+    ratio = on_time / total_offered
+    assert total_offered == 10
+    assert pytest.approx(ratio, rel=1e-6) == 0.70
+

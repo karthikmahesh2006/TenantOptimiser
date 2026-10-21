@@ -63,6 +63,8 @@ class RunMetricOut(BaseModel):
     """Single metric record with explicit provenance label and documented definitions.
 
     Key Metric Definitions:
+        - on_time_ratio (MEASURED): Requests completed within deadline divided by total requests offered.
+          Counts rejected and censored requests as failures. Headline unmet-need efficiency metric.
         - mean_satisfaction (CALCULATED): Bottleneck ratio min_r(alloc_r / demand_r).
           The denominator is strictly contractual DECLARED demand (SLA), NOT dynamic estimate.
         - unmet_demand_cpu/mem (CALCULATED): Demand minus allocation evaluated against DECLARED demand.
@@ -70,6 +72,7 @@ class RunMetricOut(BaseModel):
           Unmet actual need component 1: throttled_usec / (throttled_usec + usage_usec).
         - deadline_miss_rate (MEASURED): Fraction of completed requests missing latency deadline.
           Unmet actual need component 2: deadline_misses / completed.
+        - excluded_count (MEASURED): Total requests rejected or censored (timeouts).
         - idle_reserved_cpu/mem_mb (CALCULATED): Allocated quota that remained idle (alloc - consumed).
         - non_tenant_cpu_cores_avg (MEASURED): Host CPU cores consumed by API, loadgen, and telemetry.
           Run invalidated if exceeding 25% host reservation (0.50 vCPU).

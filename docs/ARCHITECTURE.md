@@ -2,7 +2,7 @@
 
 ## 1. Architectural Overview
 
-The Adaptive Multi-Tenant Cloud Resource Allocation Platform compares resource allocation algorithms on real containers running on an AWS EC2 instance. All client and administrative interactions occur locally through an encrypted AWS Systems Manager (SSM) Session Manager tunnel.
+The Adaptive Multi-Tenant Cloud Resource Allocation Platform is an empirical research prototype comparing resource allocation algorithms on real containers running on an AWS EC2 instance. All client and administrative interactions occur locally through an encrypted AWS Systems Manager (SSM) Session Manager tunnel.
 
 ```mermaid
 flowchart TD

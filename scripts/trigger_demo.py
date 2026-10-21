@@ -52,19 +52,20 @@ async def run_benchmark():
         m = get_run_metrics(db, r.id)
         metrics_by_policy[r.policy] = m
 
-    print("\n" + "=" * 135)
-    print("                              MEASURED LIVE HARDWARE BENCHMARK RESULTS")
-    print("               (Queried strictly from SQLite run_metrics rows for this execution run)")
-    print("=" * 135)
+    print("\n" + "=" * 145)
+    print("                                      MEASURED LIVE HARDWARE BENCHMARK RESULTS")
+    print("                       (Queried strictly from SQLite run_metrics rows for this execution run)")
+    print("=" * 145)
     print(
-        f"{'Policy':<13} | {'Jain (CALC)':<12} | {'Satis (CALC)':<12} | {'Unmet (Throt|Miss)':<20} | {'Idle CPU':<10} | {'Cons Util':<11} | {'Solve Time':<20} | {'Throughput':<14} | {'Latency (p95)':<14}"
+        f"{'Policy':<13} | {'Jain (CALC)':<12} | {'Satis (CALC)':<12} | {'On-Time (Headline)':<18} | {'Unmet (Throt|Miss)':<20} | {'Idle CPU':<10} | {'Cons Util':<11} | {'Solve Time':<18} | {'Throughput':<12} | {'p95 Lat [Excl]':<18}"
     )
-    print("-" * 135)
+    print("-" * 145)
 
     for pol in ["fcfs", "proportional", "adaptive"]:
         m = metrics_by_policy.get(pol, {})
         jain = m.get("jain_fairness_primary", 0.0)
         satis = m.get("mean_satisfaction", 0.0)
+        on_time = m.get("on_time_ratio", 1.0) * 100.0
         throt = m.get("throttle_time_ratio", 0.0) * 100.0
         miss = m.get("deadline_miss_rate", 0.0) * 100.0
         idle_c = m.get("idle_reserved_cpu", 0.0)
@@ -73,16 +74,19 @@ async def run_benchmark():
         solve_pct = m.get("solve_time_epoch_pct", (solve_ms / 1000.0) * 100.0)
         tp = m.get("throughput", 0.0)
         p95_lat = m.get("p95_latency_ms", 0.0)
+        excl = m.get("excluded_count", 0.0)
 
+        on_time_str = f"{on_time:>5.1f}%"
         unmet_str = f"{throt:>4.1f}% | {miss:>4.1f}%"
-        solve_str = f"{solve_ms:>5.2f} ms ({solve_pct:>4.2f}%)"
+        solve_str = f"{solve_ms:>5.2f}ms ({solve_pct:>4.2f}%)"
+        p95_str = f"{p95_lat:>6.1f}ms [{excl:.0f} excl]"
 
         print(
-            f"{pol.upper():<13} | {jain:<12.4f} | {satis:<12.4f} | {unmet_str:<20} | {idle_c:>5.2f} cores | {cons_u:>5.1f}% CPU   | {solve_str:<20} | {tp:>7.2f} req/s   | {p95_lat:>8.1f} ms"
+            f"{pol.upper():<13} | {jain:<12.4f} | {satis:<12.4f} | {on_time_str:<18} | {unmet_str:<20} | {idle_c:>5.2f} cores | {cons_u:>5.1f}% CPU   | {solve_str:<18} | {tp:>6.2f} req/s | {p95_str:<18}"
         )
-    print("-" * 135)
-    print("Provenance: Jain, Satis, Idle CPU are CALCULATED; Cons Util, Unmet Need, Solve, Throughput, Latency are MEASURED.")
-    print("=" * 135)
+    print("-" * 145)
+    print("Provenance: Jain, Satis, Idle CPU are CALCULATED; Cons Util, On-Time, Unmet Need, Solve, Throughput, Latency are MEASURED.")
+    print("=" * 145)
     db.close()
 
 

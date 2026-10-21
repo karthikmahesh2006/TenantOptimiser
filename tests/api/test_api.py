@@ -65,6 +65,17 @@ async def test_get_system_endpoint():
 
 
 @pytest.mark.asyncio
+async def test_regime_map_page():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/regime-map")
+        assert resp.status_code == 200
+        assert "Operational Regime Map" in resp.text
+        assert "Asymmetric Over-Declaration" in resp.text
+        assert "Near-Saturation Heterogeneous" in resp.text
+
+
+@pytest.mark.asyncio
 async def test_list_pools_and_tenants():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

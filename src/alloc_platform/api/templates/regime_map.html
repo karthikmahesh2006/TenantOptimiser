@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Regime Map - Alloc Platform{% endblock %}
+
+{% block content %}
+<div class="header-action">
+  <div>
+    <h2>Operational Regime Map</h2>
+    <p style="color: var(--text-secondary); margin-top: 0.25rem;">
+      Empirical performance taxonomy and trade-offs of the Adaptive allocator versus static baseline policies across distinct contention regimes on AWS EC2 hardware.
+    </p>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 1.5rem; overflow-x: auto;">
+  <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+    <thead>
+      <tr style="border-bottom: 2px solid var(--border); text-align: left; background: rgba(255, 255, 255, 0.02);">
+        <th style="padding: 1rem;">Regime / Scenario</th>
+        <th style="padding: 1rem;">On-Time Ratio<br><span style="font-size: 0.8rem; font-weight: normal; color: var(--text-secondary);">(pp vs Best Baseline)</span></th>
+        <th style="padding: 1rem;">Idle Reserved CPU<br><span style="font-size: 0.8rem; font-weight: normal; color: var(--text-secondary);">(Pool Capacity: 1.50c)</span></th>
+        <th style="padding: 1rem;">Solve Latency<br><span style="font-size: 0.8rem; font-weight: normal; color: var(--text-secondary);">(1000 ms Epoch)</span></th>
+        <th style="padding: 1rem;">One-Sentence Mechanism</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid var(--border); vertical-align: top;">
+        <td style="padding: 1.25rem 1rem;">
+          <strong style="color: var(--primary);">1. Asymmetric Over-Declaration</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            <code>scenario_over_declaration</code><br>
+            Tenants A & B declare 1.2c (use 0.2c); Tenant C needs 0.66c (55 rps).
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #86efac; font-weight: bold; font-size: 0.9rem;">
+            +11.5 pp Win
+          </span><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            Adaptive: <strong>35.6%</strong> [33.6, 37.5]<br>
+            WP: 24.0% | DRF: 23.2% | FCFS: 9.8%<br>
+            (Noise floor delta: 1.9 pp)
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <strong>0.46 cores</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            Baselines waste &gt;0.66c idle on A & B while C throttles; Adaptive harvests unutilized quota.
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <strong>3.27 ms</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            0.33% of epoch budget
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem; font-size: 0.9rem; line-height: 1.4;">
+          Dynamic EWMA estimation detects unconsumed headroom from over-declaring tenants and reallocates surplus capacity to the compute-constrained tenant.
+        </td>
+      </tr>
+
+      <tr style="border-bottom: 1px solid var(--border); vertical-align: top;">
+        <td style="padding: 1.25rem 1rem;">
+          <strong style="color: #cbd5e1;">2. Honest Declaration</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            <code>scenario_honest_declaration</code><br>
+            Tenants A, B, C each declare 0.5c and use 0.5c (Total = 1.50c, 100% pool).
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <span class="badge" style="background: rgba(148, 163, 184, 0.2); color: #cbd5e1; font-weight: bold; font-size: 0.9rem;">
+            0.0 pp (Neutral)
+          </span><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            All policies: <strong>100.0%</strong> [100.0, 100.0]<br>
+            Satisfaction deficit: -31.1%<br>
+            (Adaptive: 0.689 vs Baselines: 1.000)
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <strong>0.00 cores</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            Zero idle surplus exists to harvest across tenants.
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <strong>2.32 ms</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            Baselines: &le; 0.12 ms
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem; font-size: 0.9rem; line-height: 1.4;">
+          When declared demand equals real load, static baselines are already optimal, so dynamic estimation incurs computational overhead and contractual satisfaction penalties with zero goodput gain.
+        </td>
+      </tr>
+
+      <tr style="vertical-align: top;">
+        <td style="padding: 1.25rem 1rem;">
+          <strong style="color: #fca5a5;">3. Near-Saturation Heterogeneous</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            <code>scenario_1_baseline</code><br>
+            CPU-heavy (1.2c), Mix (0.8c), Mem-heavy (0.4c); Total load: 1.45c (96.7% pool).
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; font-weight: bold; font-size: 0.9rem;">
+            -88.9 pp Loss
+          </span><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            DRF: <strong>100.0%</strong> [100.0, 100.0]<br>
+            WP: 94.1% | FCFS: 75.3%<br>
+            Adaptive: <strong>11.1%</strong> [8.3, 13.3]
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <strong>0.00 cores</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            Pool saturated; solver assigns 100% capacity leaving zero unallocated surplus.
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem;">
+          <strong>2.86 ms</strong><br>
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">
+            0.29% of epoch budget
+          </span>
+        </td>
+        <td style="padding: 1.25rem 1rem; font-size: 0.9rem; line-height: 1.4;">
+          Burst-induced throttling ratchets demand estimates to caps, collapsing logarithmic utility to static weights (0.667c) and locking the CPU tenant into persistent compute starvation while DRF balances dominant multi-resource shares.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top: 1.5rem;">
+  <h3>Key Scientific Takeaways</h3>
+  <ul style="color: var(--text-secondary); line-height: 1.6; margin-top: 0.5rem; padding-left: 1.25rem;">
+    <li><strong>When Adaptive Wins:</strong> Asymmetric over-declaration where idle capacity exists to be reclaimed for constrained workloads (+11.5 pp to +25.7 pp goodput gain).</li>
+    <li><strong>When Adaptive is Neutral:</strong> Saturated honest demand, where dynamic estimation adds modest solve overhead (2.3 ms) and contracts allocations below contractual caps.</li>
+    <li><strong>When Adaptive Loses:</strong> Heterogeneous multi-resource contention near host saturation (&gt;95% load), where DRF successfully balances dominant shares while 1-D log utility collapses to static weights.</li>
+  </ul>
+</div>
+{% endblock %}

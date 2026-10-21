@@ -274,6 +274,20 @@ def page_architecture(request: Request, user: User = Depends(get_current_user)):
     )
 
 
+@pages_router.get("/regime-map", response_class=HTMLResponse)
+def page_regime_map(request: Request, user: User = Depends(get_current_user)):
+    ctx = {
+        "active_page": "regime_map",
+        "user": user,
+    }
+    ctx.update(_mode_context())
+    return templates.TemplateResponse(
+        request=request,
+        name="regime_map.html",
+        context=ctx,
+    )
+
+
 @pages_router.get("/login", response_class=HTMLResponse)
 def page_login(request: Request):
     return templates.TemplateResponse(

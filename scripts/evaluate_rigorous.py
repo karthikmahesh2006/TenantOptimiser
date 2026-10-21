@@ -29,6 +29,7 @@ async def run_scenario_benchmark(
     repeats: int = 5,
     exp_name: str | None = None,
 ) -> str:
+    init_db()
     db = SessionLocal()
     exp_id = f"eval_{scenario_id[:10]}_{uuid.uuid4().hex[:6]}"
     scen_name = exp_name or f"Rigorous Evaluation: {scenario_id} ({repeats} repeats)"

@@ -74,6 +74,36 @@
     - `scenario_honest_declaration`: `tenant_a_honest` = 11.7 req/s, `tenant_b_honest` = 11.7 req/s, `tenant_c_honest` = 11.7 req/s (Total demand = 1.50 cores = 100.0% pool)
 - **Consequences:** Any subsequent modification to these parameters must be documented with explicit justification in ADR records, retaining earlier benchmark results without overwriting.
 
+## ADR-010: Bounded Diagnosis of Scenario 1 (Adaptive On-Time 7.1% vs DRF 100%) and Calibration Justification
+- **Context:** Under `scenario_1_baseline` on EC2 hardware, Adaptive achieved an on-time completion ratio of 7.1% (8.2% on diagnostic re-test) while DRF achieved 100.0%. A bounded diagnostic was ordered to identify whether this discrepancy constitutes an implementation artifact/bug or a fundamental algorithmic limitation, and to verify the commit provenance of the over-declaration specification.
+- **Diagnostic Findings & Mechanism Evidence:**
+  1. **Censored-Demand Feedback Loop (Ratchet):**
+     - Total offered load is 1.45 cores (96.7% of the 1.50-core pool).
+     - Natural Poisson arrival burstiness induces transient CFS throttling across all three tenant containers.
+     - The demand estimator's fast-up escalation (`est = est + 0.5 * (dem_val - est)`) interprets burst throttling as chronic capacity deficit, rapidly ratcheting all three demand estimates toward their declared demand caps (`tenant_cpu`: 1.20c cap $\to$ 1.05c estimate; `tenant_mix`: 0.80c cap $\to$ 0.75c estimate; `tenant_mem`: 0.40c cap $\to$ 0.40c estimate).
+     - Summed demand estimates reach 2.19 cores, which is 146% of the 1.50-core pool capacity.
+  2. **SLSQP Log-Utility Collapse to Static Weighted Sharing:**
+     - When the capacity constraint $\sum_i s_i \hat{d}_i \le C$ binds, logarithmic utility maximization $\max \sum_i w_i \ln(s_i)$ mathematically collapses to allocating resources strictly in proportion to tenant weights:
+       $$\text{alloc}_i = \frac{w_i}{\sum_k w_k} C$$
+     - With weights $w_{\text{cpu}}=2.0, w_{\text{mix}}=1.5, w_{\text{mem}}=1.0$ (total weight = 4.5), the solver assigns:
+       - `tenant_cpu`: $(2.0 / 4.5) \times 1.50 = 0.667\text{ cores}$
+       - `tenant_mix`: $(1.5 / 4.5) \times 1.50 = 0.500\text{ cores}$
+       - `tenant_mem`: $(1.0 / 4.5) \times 1.50 = 0.333\text{ cores}$
+  3. **Persistent Starvation & Ratchet Lock:**
+     - To service 66.8 req/s with a service time of 0.0120 s/req, `tenant_cpu` requires 0.80 cores.
+     - Because it is allocated only 0.667 cores, it experiences permanent 17% compute starvation. It is continuously throttled (20% to 39% CFS throttle ratio each epoch), which in turn keeps its demand estimate ratcheted high, locking the solver into the 0.667-core allocation.
+     - Meanwhile, `tenant_mem` is allocated 0.34 cores while only needing 0.20 cores. However, surplus harvesting cannot reallocate this idle quota because the solver already allocated 100% of the pool ($0.667 + 0.500 + 0.333 = 1.500\text{c}$), leaving zero unallocated surplus (`surplus_cpu = 0.0`).
+  4. **Why DRF Succeeds (100% On-Time):**
+     - DRF operates in dominant share space. `tenant_mem`'s dominant resource request is memory (2048 MiB / 3072 MiB = 66.7%).
+     - By equalizing dominant shares, DRF grants `tenant_mem` memory but restricts its CPU allocation to its dominant ratio, naturally leaving $\approx 0.85\text{ cores}$ of CPU available for `tenant_cpu`.
+- **Classification & Decision:**
+  - This is a **genuine algorithmic limitation** of scalar 1-D log-utility with fast-up demand estimation under near-saturation conditions ($>95\%$ pool load).
+  - No ex-post parameter tuning is permitted. This outcome is documented as a reported empirical limitation with equal prominence to Adaptive's wins.
+- **Spec Commitment & Tenant C Rate Justification:**
+  - `scenario_over_declaration` was committed in `b8071ed` before its first run.
+  - In `scenario_over_declaration`, Tenant C declares 0.50c and requires 0.66c (55 req/s on calibration seed 701) rather than the 1.0c (83 req/s) mentioned in the original preliminary sketch. At 83 req/s, the client load generator process consumed $>0.55\text{ cores}$ on the 2-vCPU host, violating the $0.50\text{ core}$ host reservation guard and triggering automatic run invalidation. Calibrating Tenant C to 55 req/s (0.66c demand) guarantees the host reservation invariant holds while preserving the intended contention dynamic (0.66c true demand vs 0.50c static allocation).
+- **Consequences:** All on-time ratio differences are reported in percentage points (`pp`). Memory capacity is formally acknowledged as non-binding in current test workloads. Formal ablations (`no_smoothing`, `no_estimation_declared`, `no_hysteresis`, `no_surplus`) are evaluated in Stage 4.
+
 
 
 

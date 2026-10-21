@@ -194,12 +194,13 @@ def print_comparison_table(scenario_name: str, analysis: Dict[str, Any]):
 
     print("-" * 195)
 
-    # Relative comparison vs baselines (Item 7 & A6: no relative solve overhead percentage)
+    # Performance comparison vs baselines (Item 7 & A6: no relative solve overhead percentage)
     if "adaptive" in stats:
-        print("  RELATIVE PERCENTAGE DIFFERENCE (Adaptive vs Baselines, including trade-offs & losses):")
+        print("  PERFORMANCE COMPARISON (Adaptive vs Baselines, including trade-offs & losses):")
         ad_jain = stats["adaptive"].get("jain_fairness_primary", {}).get("mean", 0.0)
         ad_satis = stats["adaptive"].get("mean_satisfaction", {}).get("mean", 0.0)
         ad_tp = stats["adaptive"].get("throughput", {}).get("mean", 0.0)
+        ad_ontime = stats["adaptive"].get("on_time_ratio", {}).get("mean", 0.0) * 100.0
         ad_solve = stats["adaptive"].get("solve_ms_avg", {}).get("mean", 0.0)
         ad_solve_pct = (ad_solve / max(1.0, epoch_ms)) * 100.0
 
@@ -208,13 +209,15 @@ def print_comparison_table(scenario_name: str, analysis: Dict[str, Any]):
                 b_jain = stats[base].get("jain_fairness_primary", {}).get("mean", 0.0)
                 b_satis = stats[base].get("mean_satisfaction", {}).get("mean", 0.0)
                 b_tp = stats[base].get("throughput", {}).get("mean", 0.0)
+                b_ontime = stats[base].get("on_time_ratio", {}).get("mean", 0.0) * 100.0
 
                 d_jain = pct_change(ad_jain, b_jain)
                 d_satis = pct_change(ad_satis, b_satis)
                 d_tp = pct_change(ad_tp, b_tp)
+                d_ontime_pp = ad_ontime - b_ontime
 
                 print(
-                    f"  vs {base.upper():<12}: Satisfaction: {d_satis:>+6.1f}% | Jain: {d_jain:>+6.1f}% | Throughput: {d_tp:>+6.1f}%"
+                    f"  vs {base.upper():<12}: On-Time Diff: {d_ontime_pp:>+6.1f} pp | Throughput: {d_tp:>+6.1f}% | Satisfaction: {d_satis:>+6.1f}% | Jain: {d_jain:>+6.1f}%"
                 )
 
         print(f"  Adaptive Solver Latency: {ad_solve:.2f} ms ({ad_solve_pct:.2f}% of {config.epoch_interval_s:.1f}s epoch)")
@@ -237,11 +240,11 @@ async def main():
         "--scenario",
         type=str,
         default=None,
-        help="Specific scenario ID to run (e.g. scenario_1_baseline, scenario_2_burst, scenario_3_capacity_cut, scenario_4_churn)",
+        help="Specific scenario ID to run (e.g. scenario_1_baseline, scenario_2_burst, scenario_3_capacity_cut, scenario_4_churn, scenario_over_declaration, scenario_honest_declaration)",
     )
     parser.add_argument("--policies", type=str, default="fcfs,proportional,drf,adaptive,adaptive_noise", help="Comma-separated policy list")
     parser.add_argument("--repeats", type=int, default=5, help="Number of repeats per policy (default: 5)")
-    parser.add_argument("--ablations", action="store_true", help="Run Adaptive ablation study on Scenario 2")
+    parser.add_argument("--ablations", action="store_true", help="Run Adaptive ablation study on over-declaration and baseline scenarios")
     parser.add_argument("--analyze-only", type=str, default=None, help="Analyze and print existing experiment ID")
     args = parser.parse_args()
 
@@ -260,17 +263,25 @@ async def main():
 
     if args.ablations:
         print("\n" + "=" * 120)
-        print("  RUNNING ADAPTIVE ABLATIONS ON SCENARIO 2 (BURST)")
+        print("  RUNNING ADAPTIVE ABLATIONS (no_smoothing, no_estimation_declared, no_hysteresis, no_surplus)")
         print("=" * 120)
-        ablation_policies = ["adaptive", "adaptive_no_est", "adaptive_no_hyst", "adaptive_no_surplus"]
-        abl_exp_id = await run_scenario_benchmark(
-            "scenario_2_burst",
-            ablation_policies,
-            repeats=args.repeats,
-            exp_name="Adaptive Ablation Study: Burst Workload",
-        )
-        abl_analysis = analyze_experiment(abl_exp_id)
-        print_comparison_table("Adaptive Ablation Study (Scenario 2 Burst)", abl_analysis)
+        ablation_policies = [
+            "adaptive",
+            "no_smoothing",
+            "no_estimation_declared",
+            "no_hysteresis",
+            "no_surplus",
+        ]
+        for sk in ["scenario_over_declaration", "scenario_1_baseline"]:
+            if sk in scenarios:
+                abl_exp_id = await run_scenario_benchmark(
+                    sk,
+                    ablation_policies,
+                    repeats=args.repeats,
+                    exp_name=f"Adaptive Ablation Study: {scenarios[sk].name}",
+                )
+                abl_analysis = analyze_experiment(abl_exp_id)
+                print_comparison_table(f"Adaptive Ablation Study ({scenarios[sk].name})", abl_analysis)
         return
 
     scen_keys = [args.scenario] if args.scenario else [

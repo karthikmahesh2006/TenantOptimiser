@@ -63,6 +63,9 @@ class AdaptiveAllocator:
         self.prev_plan: Plan | None = None
         # Previous backlog tracking for fast-up detection
         self.prev_backlog: dict[str, int] = {}
+        # Diagnostics tracking per epoch
+        self.epoch_diagnostics: list[dict] = []
+        self.last_solver_s: dict[str, float] = {}
 
     def estimate_demand(
         self, tenants: list[Tenant], obs: dict[str, TenantObs] | None = None
@@ -264,6 +267,7 @@ class AdaptiveAllocator:
             )
             if res.success:
                 s_opt = np.clip(res.x, s_min, 1.0)
+                self.last_solver_s = {t.id: round(float(s_opt[i]), 4) for i, t in enumerate(active_tenants)}
                 alloc: dict[str, dict[str, float]] = {}
                 for i, t in enumerate(active_tenants):
                     alloc[t.id] = {}
@@ -287,6 +291,7 @@ class AdaptiveAllocator:
             notes.append(f"SLSQP error ({e!s}); falling back to proportional.")
 
         # Fallback to proportional plan
+        self.last_solver_s = {t.id: round(float(s0[i]), 4) for i, t in enumerate(active_tenants)}
         alloc = {
             t.id: {r: round(prop_plan.alloc[t.id][r], 6) for r in resources} for t in active_tenants
         }
@@ -522,4 +527,25 @@ class AdaptiveAllocator:
             solve_ms=round(total_solve_ms, 4),
         )
         self.prev_plan = plan
+
+        active_tenants = [t for t in tenants if t.active]
+        self.epoch_diagnostics.append(
+            {
+                "epoch": now,
+                "dhat": {t.id: dict(dhat[t.id]) for t in active_tenants},
+                "solver_s": dict(self.last_solver_s),
+                "opt_alloc": {t.id: dict(opt_alloc[t.id]) for t in active_tenants},
+                "final_alloc": {t.id: dict(final_alloc[t.id]) for t in active_tenants},
+                "obs": {
+                    t.id: {
+                        "usage": dict(obs[t.id].usage) if obs and t.id in obs else {},
+                        "throttle_ratio": obs[t.id].throttle_ratio if obs and t.id in obs else 0.0,
+                        "backlog": obs[t.id].backlog if obs and t.id in obs else 0,
+                    }
+                    for t in active_tenants
+                },
+                "sum_dhat_cpu": sum(dhat[t.id].get("cpu", 0.0) for t in active_tenants),
+                "pool_cpu": pool.capacity.get("cpu", 0.0),
+            }
+        )
         return plan

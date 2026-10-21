@@ -102,6 +102,18 @@ The experimental evaluation tests four formal hypotheses:
 | `scenario_2_burst` | Hypothesis H2: Flash crowd burst | CPU worker bursts from $1.2\text{c}$ to $1.8\text{c}$ at $t=10\text{s}$, returns at $t=20\text{s}$ | Adaptive tracks burst via fast-up; baselines remain static. |
 | `scenario_3_capacity_cut` | Robustness under host degradation | Physical host pool cut from $1.5\text{c}$ to $0.9\text{c}$ at $t=15\text{s}$ | All policies downscale; tests minimum guarantee preservation. |
 | `scenario_4_churn` | Dynamic tenant lifecycle | Mixed service arrives at $t=10\text{s}$, departs at $t=20\text{s}$ | Tests admission control, churn penalty, and deallocation speed. |
-| `scenario_over_declaration` | Hypothesis H1: Asymmetric over-declaration | Tenants A and B declare $1.2\text{c}$ each but use $\approx 0.2\text{c}$; Tenant C genuinely needs $\approx 1.0\text{c}$ | Baselines waste $\approx 0.66\text{c}$ idle on A & B while C throttles. Adaptive reclaims idle capacity for C. |
+| `scenario_over_declaration` | Hypothesis H1: Asymmetric over-declaration | Tenants A and B declare $1.2\text{c}$ each but use $\approx 0.2\text{c}$; Tenant C declares $0.5\text{c}$ and genuinely needs $\approx 0.66\text{c}$ ($55\text{ rps}$) | Baselines waste $\approx 0.66\text{c}$ idle on A & B while C throttles. Adaptive reclaims idle capacity for C. |
 | `scenario_honest_declaration` | Hypothesis H3: Saturated honest load | Tenants A, B, C each declare $0.5\text{c}$ and use $\approx 0.5\text{c}$ (total = $1.5\text{c} = 100\%$ pool) | Baselines allocate optimally ($0.5\text{c}$ each). Adaptive has no surplus to harvest; neutral or slightly worse. |
+
+## 7. Systematic Policy Ablations
+To isolate the contributions of individual optimizer components, four formal ablations of Adaptive are evaluated under `scenario_over_declaration` and `scenario_1_baseline`:
+1. **`no_smoothing`** ($\alpha = 1.0, h = 0.0$): Dynamic estimation enabled, but EWMA smoothing and headroom damping are removed; allocations respond instantaneously to raw sampled usage.
+2. **`no_estimation_declared`** (`use_estimation = False`): Dynamic estimation disabled; SLSQP optimizer runs directly on declared contractual demand, testing whether the convex solver alone provides advantage without telemetry.
+3. **`no_hysteresis`** (`use_hysteresis = False`): Stability filters removed (deadband $= 0$, dwell $= 0$, contraction cap $= 100\%$, memory safety margin preserved).
+4. **`no_surplus`** (`use_surplus = False`): Iterative multi-pass surplus redistribution disabled.
+
+## 8. Limitations & Threats to Validity
+1. **Memory Capacity Saturation**: In the current testbed scenarios, memory is not a binding constraint (`memory_heavy` RSS is approximately $37\text{ MiB}$ compared to the $3072\text{ MiB}$ pool capacity). CPU is the primary bottleneck resource. Therefore, no broad multi-resource conclusions can be generalized beyond the CPU-dominant dynamics observed.
+2. **Hypothesis H3 Testing**: While `scenario_honest_declaration` tests uniform identical demands, it does not fully stress heterogeneous honest declarations; empirical conclusions regarding H3 remain bounded to uniform saturated conditions.
+3. **Percentage Points (`pp`) for Differences**: Goodput differences (`on_time_ratio`) are reported strictly in percentage points (`pp`), avoiding deceptive relative percentage scaling. Findings are described as 'consistent with' hypotheses until formal bootstrap confidence intervals are established in Stage 4.
 

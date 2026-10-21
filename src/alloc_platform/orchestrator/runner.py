@@ -222,9 +222,12 @@ async def _execute_single_run(
     # Ablation configuration
     pol = policy.lower()
     adaptive_params = AdaptiveParams()
-    if "no_est" in pol:
+    if "no_smoothing" in pol:
+        adaptive_params.ewma_alpha = 1.0
+        adaptive_params.headroom_h = 0.0
+    elif "no_estimation_declared" in pol or "no_est" in pol:
         adaptive_params.use_estimation = False
-    if "no_hyst" in pol:
+    if "no_hysteresis" in pol or "no_hyst" in pol:
         adaptive_params.use_hysteresis = False
     if "no_surplus" in pol:
         adaptive_params.use_surplus = False
@@ -486,7 +489,7 @@ async def _execute_single_run(
                 plan = allocate_proportional(curr_pool, active_tenants, obs, prev_plan)
             elif pol == "drf":
                 plan = allocate_drf(curr_pool, active_tenants, obs, prev_plan)
-            elif pol.startswith("adaptive"):
+            elif pol.startswith("adaptive") or pol.startswith("no_"):
                 plan = adaptive_inst.allocate(
                     curr_pool, active_tenants, obs, prev_plan, now=step_time
                 )
@@ -686,6 +689,16 @@ async def _execute_single_run(
             convergence_initial=convergence_initial,
             convergence_avg=convergence_avg,
         )
+
+        if hasattr(adaptive_inst, "epoch_diagnostics") and adaptive_inst.epoch_diagnostics:
+            diag_dir = os.path.join(config.data_dir, "diagnostics")
+            os.makedirs(diag_dir, exist_ok=True)
+            diag_file = os.path.join(diag_dir, f"{run_id}.json")
+            try:
+                with open(diag_file, "w", encoding="utf-8") as f:
+                    json.dump(adaptive_inst.epoch_diagnostics, f, indent=2)
+            except Exception:
+                pass
 
         run_row = db.query(Run).filter(Run.id == run_id).first()
         if run_row:

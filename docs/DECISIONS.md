@@ -49,5 +49,31 @@
   2. In `AdaptiveAllocator.solve_convex`, lower bound constraints (`s_min`) are filtered strictly by `admitted_ids` from `check_guarantee_feasibility`. This guarantees that lower bounds never exceed pool capacity, ensuring the SLSQP optimization problem remains strictly feasible. A final capacity clamp in `stability_filter` guarantees the physical capacity invariant is never violated regardless of hysteresis or dwell states.
 - **Consequences:** Deterministic zero-configuration deployment across any fresh Linux host, and mathematical stability across all extreme or infeasible guarantee configurations.
 
+## ADR-009: Pre-Stage 4 Parameter Freeze (`params-frozen`)
+- **Context:** Rule A5 requires freezing all tunables and scenario parameters before beginning Stage 4 replication benchmarks to prevent ex-post retuning.
+- **Decision:** All hyperparameters, thresholds, pool budgets, and calibrated offered rates are strictly frozen as of commit tag `params-frozen`:
+  - **Host & Pool Budget:** Host = 2.0 vCPU, 4096 MiB RAM. Pool budget = 75% (`default_host_cpu_ratio = 0.75`, `default_host_mem_ratio = 0.75`), reserving 25% (0.50 vCPU, 1024 MiB RAM) strictly outside the pool for OS, API server, load generator, and sampler.
+  - **Optimizer Hyperparameters:**
+    - `lambda_churn = 0.10` (Pseudo-Huber churn penalty weight in SLSQP utility objective)
+    - `headroom_h = 0.20` (20% demand estimation headroom above EWMA)
+    - `ewma_alpha = 0.30` (smoothing factor for usage observation)
+    - `epoch_interval_s = 1.0` (control loop period)
+  - **Stability & Safety Constants:**
+    - `memory_safety_mb = 64.0` (minimum headroom above physical usage to prevent OOM)
+    - `throttle_threshold = 0.05` (5% CFS throttling threshold triggering fast-up escalation)
+    - `max_shrink_per_epoch = 0.20` (maximum 20% limit contraction per epoch)
+    - `deadband = 0.05` (5% of pool capacity change threshold for update suppression)
+    - `min_dwell_s = 3.0` (minimum dwell duration before voluntary limit reduction)
+  - **Run Invalidation Guard Thresholds:**
+    - Max host CPU steal: `max_cpu_steal_pct = 5.0%`
+    - Max non-tenant CPU: `0.50 vCPU` (25% host reservation)
+    - Max unexpected OOM kills: `0`
+  - **Calibrated Scenario Offered Rates (from hardware calibration seeds 701-704):**
+    - `scenario_1_baseline`: `tenant_cpu` = 66.8 req/s, `tenant_mix` = 10.6 req/s, `tenant_mem` = 2.7 req/s (Total demand = 1.45 cores = 96.7% pool)
+    - `scenario_over_declaration`: `tenant_a_over` = 11.7 req/s, `tenant_b_over` = 11.7 req/s, `tenant_c_honest` = 55.0 req/s (Total demand = 1.06-1.20 cores)
+    - `scenario_honest_declaration`: `tenant_a_honest` = 11.7 req/s, `tenant_b_honest` = 11.7 req/s, `tenant_c_honest` = 11.7 req/s (Total demand = 1.50 cores = 100.0% pool)
+- **Consequences:** Any subsequent modification to these parameters must be documented with explicit justification in ADR records, retaining earlier benchmark results without overwriting.
+
+
 
 

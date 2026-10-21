@@ -643,11 +643,6 @@ async def _execute_single_run(
                 run_row.invalidation_reason = (
                     f"High host steal {max_steal_pct:.1f}% exceeded threshold of {config.max_cpu_steal_pct}%"
                 )
-            elif total_oom_kills > 0:
-                run_row.is_valid = False
-                run_row.invalidation_reason = (
-                    f"Unexpected OOM kill count {total_oom_kills} exceeded threshold of 0"
-                )
             db.commit()
 
         # Convergence calculation across startup and timed events (A4)

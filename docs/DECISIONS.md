@@ -102,7 +102,12 @@
 - **Spec Commitment & Tenant C Rate Justification:**
   - `scenario_over_declaration` was committed in `b8071ed` before its first run.
   - In `scenario_over_declaration`, Tenant C declares 0.50c and requires 0.66c (55 req/s on calibration seed 701) rather than the 1.0c (83 req/s) mentioned in the original preliminary sketch. At 83 req/s, the client load generator process consumed $>0.55\text{ cores}$ on the 2-vCPU host, violating the $0.50\text{ core}$ host reservation guard and triggering automatic run invalidation. Calibrating Tenant C to 55 req/s (0.66c demand) guarantees the host reservation invariant holds while preserving the intended contention dynamic (0.66c true demand vs 0.50c static allocation).
-- **Consequences:** All on-time ratio differences are reported in percentage points (`pp`). Memory capacity is formally acknowledged as non-binding in current test workloads. Formal ablations (`no_smoothing`, `no_estimation_declared`, `no_hysteresis`, `no_surplus`) are evaluated in Stage 4.
+## ADR-011: Scientific Invalidation Protocol (OOM Accounting) & Exploratory Overload Guard Proposal
+- **Context:** In early testing, container terminations with exit code 137 were flagged as invalidating the run. Under scientific peer review, container terminations caused by an allocator's quota decisions (such as DRF aggressively downscaling memory below container requirements without safety margins in Scenario 3) represent operational failures of the policy, NOT test environment faults. Only host environment faults (noisy neighbor CPU steal $>5.0\%$, non-tenant host CPU overshooting reservation $>0.50\text{c}$) invalidate a benchmark run.
+- **Decision:**
+  1. **OOM Accounting Rule**: Policy-induced OOM terminations are treated as valid policy evaluations with failure metrics (0% on-time ratio for terminated workloads). All evaluation tables are recomputed with honest $n=5$ sample sizes and confidence intervals, reporting OOM counts and rates per policy.
+  2. **Exploratory Proposal (`adaptive_overload_guard`)**: To resolve the scalar log-utility collapse observed when summed estimates exceed pool capacity ($\sum \hat{d}_{i, r} > C_r$), an overload guard that falls back to declared-demand static allocations was analyzed. To strictly preserve the parameter freeze under ADR-009 and prevent ex-post alterations prior to the faculty demonstration, this mechanism is documented as future research prototype enhancement (v2.0) rather than patched into the frozen v1 baseline.
+- **Consequences:** Eliminates misleading single-run 100% claims for DRF in Scenario 3, transparently reporting its 80% OOM failure rate. Baseline v1 parameters remain strictly frozen.
 
 
 

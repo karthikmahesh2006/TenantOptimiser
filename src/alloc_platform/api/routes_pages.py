@@ -1,5 +1,6 @@
 """HTML view routes serving Jinja2 templates."""
 
+import json
 import os
 from pathlib import Path
 
@@ -31,10 +32,17 @@ def _get_modes() -> tuple[str, dict]:
 
     meta = {
         "recording_date": "2026-10-14",
+        "date_range": "2026-10-14",
         "instance_type": "c7i-flex.large",
+        "run_count": 0,
     }
-    fb_path = "data/recorded_fallback.json"
-    if os.path.exists(fb_path):
+    fb_candidates = [
+        os.path.join(config.data_dir, "recorded_fallback.json"),
+        "/opt/alloc/current/data/recorded_fallback.json",
+        "data/recorded_fallback.json",
+    ]
+    fb_path = next((p for p in fb_candidates if os.path.exists(p)), None)
+    if fb_path:
         try:
             with open(fb_path, "r", encoding="utf-8") as f:
                 fb = json.load(f)
@@ -43,6 +51,26 @@ def _get_modes() -> tuple[str, dict]:
                     rec_date = rec_date.split("T")[0]
                 meta["recording_date"] = rec_date
                 meta["instance_type"] = fb.get("instance_type", "c7i-flex.large")
+
+                # Derive date range and run count
+                exps = fb.get("experiments", [])
+                all_runs = [r for exp in exps for r in exp.get("runs", [])]
+                meta["run_count"] = fb.get("run_count", len(all_runs))
+
+                dates = set()
+                if "date_range" in fb:
+                    meta["date_range"] = fb["date_range"]
+                else:
+                    for exp in exps:
+                        c_at = exp.get("created_at")
+                        if c_at:
+                            dates.add(c_at.split("T")[0])
+                    if dates:
+                        min_d = min(dates)
+                        max_d = max(dates)
+                        meta["date_range"] = min_d if min_d == max_d else f"{min_d} to {max_d}"
+                    else:
+                        meta["date_range"] = rec_date
         except Exception:
             pass
     elif os.path.exists("data/fallback_metadata.json"):

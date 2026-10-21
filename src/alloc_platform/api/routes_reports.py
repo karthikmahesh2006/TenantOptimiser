@@ -15,6 +15,7 @@ reports_router = APIRouter(prefix="/reports")
 
 
 @reports_router.get("/{experiment_id}.json")
+@reports_router.get("/json/{experiment_id}")
 def export_json(experiment_id: str, db: Session = Depends(get_db)):
     exp = get_experiment_by_id(db, experiment_id)
     if not exp:
@@ -52,6 +53,7 @@ def export_json(experiment_id: str, db: Session = Depends(get_db)):
 
 
 @reports_router.get("/{experiment_id}.csv")
+@reports_router.get("/csv/{experiment_id}")
 def export_csv(experiment_id: str, db: Session = Depends(get_db)):
     exp = get_experiment_by_id(db, experiment_id)
     if not exp:
@@ -78,6 +80,8 @@ def export_csv(experiment_id: str, db: Session = Depends(get_db)):
 
 
 @reports_router.get("/{experiment_id}.md")
+@reports_router.get("/markdown/{experiment_id}")
+@reports_router.get("/{experiment_id}.markdown")
 def export_markdown(experiment_id: str, db: Session = Depends(get_db)):
     exp = get_experiment_by_id(db, experiment_id)
     if not exp:
@@ -109,3 +113,22 @@ def export_markdown(experiment_id: str, db: Session = Depends(get_db)):
         media_type="text/markdown",
         headers={"Content-Disposition": f"attachment; filename=report_{experiment_id}.md"},
     )
+
+
+export_router = APIRouter(prefix="/api/v1/export")
+
+@export_router.get("/{experiment_id}.json")
+@export_router.get("/json/{experiment_id}")
+def export_json_api(experiment_id: str, db: Session = Depends(get_db)):
+    return export_json(experiment_id, db)
+
+@export_router.get("/{experiment_id}.csv")
+@export_router.get("/csv/{experiment_id}")
+def export_csv_api(experiment_id: str, db: Session = Depends(get_db)):
+    return export_csv(experiment_id, db)
+
+@export_router.get("/{experiment_id}.md")
+@export_router.get("/markdown/{experiment_id}")
+@export_router.get("/{experiment_id}.markdown")
+def export_markdown_api(experiment_id: str, db: Session = Depends(get_db)):
+    return export_markdown(experiment_id, db)

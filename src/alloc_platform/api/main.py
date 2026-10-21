@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from alloc_platform.api.auth import bootstrap_admin_user
 from alloc_platform.api.routes_api import api_router
 from alloc_platform.api.routes_pages import pages_router
-from alloc_platform.api.routes_reports import reports_router
+from alloc_platform.api.routes_reports import export_router, reports_router
 from alloc_platform.config import config
 from alloc_platform.db.models import PoolModel, ScenarioModel, TenantModel
 from alloc_platform.db.repo import upsert_pool, upsert_tenant
@@ -29,8 +29,13 @@ async def lifespan(app: FastAPI):
     if config.alloc_mode.lower() == "recorded":
         import os
         from scripts.import_fallback import import_bundle
-        fb_path = "data/recorded_fallback.json"
-        if os.path.exists(fb_path):
+        fb_candidates = [
+            os.path.join(config.data_dir, "recorded_fallback.json"),
+            "/opt/alloc/current/data/recorded_fallback.json",
+            "data/recorded_fallback.json",
+        ]
+        fb_path = next((p for p in fb_candidates if os.path.exists(p)), None)
+        if fb_path:
             try:
                 import_bundle(fb_path)
             except Exception:
@@ -123,3 +128,4 @@ app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 app.include_router(pages_router)
 app.include_router(api_router)
 app.include_router(reports_router)
+app.include_router(export_router)

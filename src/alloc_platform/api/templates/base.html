@@ -41,7 +41,7 @@
           <line x1="12" y1="8" x2="12" y2="12"></line>
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
-        RECORDED real measurements from {{ fallback_metadata.recording_date }}, instance {{ fallback_metadata.instance_type }}, not live
+        RECORDED real measurements from {{ fallback_metadata.date_range }}, {{ fallback_metadata.run_count }} runs on {{ fallback_metadata.instance_type }}, not live
       </div>
     {% elif mode == 'sim' %}
       <div class="fallback-banner" style="background: rgba(239, 68, 68, 0.15); border-color: var(--danger); color: #fca5a5;">

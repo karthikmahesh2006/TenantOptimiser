@@ -187,7 +187,7 @@ During initial simulation on oversubscribed scenarios (Scenario 1 Baseline: Pool
 - However, initializing `prev_mem = demand` forced `floor_val = max(calc_floor, prev_mem) = demand`, creating an artificial oversubscription where $\sum \text{floor} = 3584\text{ MB} > 3072\text{ MB}$.
 - This erroneously triggered Condition 4 priority shedding at epoch 0, rejecting up to 1,922 requests per run.
 
-#### 2. Attribution: 2x2 Factorial Matrix
+#### 2. Attribution: 2x2 Factorial Matrix & Interaction Analysis
 To rigorously isolate whether the 17.07% on-time metric was an allocator defect, a simulator artifact, or both, a 2x2 factorial matrix was executed locally on `scenario_1_baseline` across diagnosis seeds `101`, `102`, `103`:
 
 | Test Cell | Allocator Policy | Synthetic RSS Frac | Mean On-Time Ratio | Mean Rejected Samples | Mean Unmet Guarantees | Mean Throttled-Spare Ratio |
@@ -197,9 +197,18 @@ To rigorously isolate whether the 17.07% on-time metric was an allocator defect,
 | **Cell 3** | Patched SAHA (`saha`) | $0.80 \times D$ | **17.07%** | 1,968.0 | 0.0 | 10.00% |
 | **Cell 4** | Patched SAHA (`saha`) | $0.25 \times D$ | **100.00%** | **0.0** | **0.0** | **3.33%** |
 
-- **Attribution Finding**:
-  - The failure on realistic load is 100% an **allocator bug**: Cell 2 demonstrates that unpatched SAHA fails with 17.07% on-time even under realistic physical RSS ($0.25 \times D$) due to the epoch-0 cold-start floor bug.
-  - The simulator's legacy $0.80 \times D$ synthetic model was an **artifact** that masked the fix: under $0.80 \times D$, empirical p99 floor ($1.15 \times 0.80 \times D + 0.10 \times 0.80 \times D = 1.00 \times D$) equals $100\%$ of declared demand, creating an artificial infeasibility. Under realistic hardware RSS ($0.25 \times D$), patched SAHA achieves **100.00% on-time** and **0 rejections**.
+- **Attribution Finding (Interaction Model)**:
+  - The 17.07% failure is an **interaction** where the **allocator defect** (cold-start floor over-allocation) AND the **synthetic RSS artifact** ($0.80 \times D$ demand inflation) are each **independently sufficient** to cause 17.07% on-time shedding failure:
+    - **Cell 2** shows that the unpatched allocator alone suffices to cause 17.07% failure even under realistic physical RSS ($0.25 \times D$).
+    - **Cell 3** shows that the synthetic RSS artifact alone suffices to cause 17.07% failure even with the patched allocator ($1.15 \times 0.80 \times D + 0.10 \times 0.80 \times D = 1.00 \times D$, inducing artificial infeasibility).
+    - **Cell 4** demonstrates that BOTH the allocator defect and the simulator artifact must be resolved together for the simulated run to achieve 100% on-time.
+- **Unmet Guarantees Column Explanation**:
+  - The "Unmet Guarantees" column counts solver-level minimum guarantee violations (`len(plan.unmet_guarantees)`).
+  - In the preliminary report, this column showed `0.0` because `_compute_and_save_run_metrics` in `runner.py` did not persist `"unmet_guarantees_count"` as a key in `RunMetric`, causing queries to default to 0.0. The actual request-level shedding was captured in the request sample metrics as `rejected = 1968.0` (reflecting Condition 4 priority shedding for tenants whose memory floor was shed). In the current codebase, `unmet_guarantees_count` is explicitly recorded in `RunMetric`.
+- **Explicit Disclaimer on Simulation vs Live Hardware**:
+  > [!WARNING]
+  > **Simulated 100% on-time does NOT imply or guarantee live EC2 success.**
+  > The open-loop simulator models nominal service times and speedup functions, but does NOT model physical CPU saturation, Linux CFS runqueue queuing delay, context switching overhead, socket buffer exhaustion, or real kernel memory pressure under cgroup v2. Live confirmatory evaluation on EC2 is required to empirically test hypotheses H5–H8.
 
 #### 3. Code Fix & Pinned Pre-Fix Snapshot
 - **Fix (Commit `4d6cdb6`)**: In `saha.py:346-350`, when `prev_alloc is None` and declared-floor gate is inactive (`is_declared_floor_active is False`), `prev_mem` initializes to `calc_floor` ($1.15 \times \text{curr\_rss} + \text{margin}$) per ADR-011 §2.2, NOT declared demand.
@@ -209,9 +218,25 @@ To rigorously isolate whether the 17.07% on-time metric was an allocator defect,
 - Diagnosis, parameter verification, and matrix benchmarking strictly utilized **seeds `101`, `102`, `103` ONLY**.
 - Confirmatory seeds `42`, `43`, `44`, `45`, `46` were strictly held out and have **NEVER** been simulated locally for SAHA.
 
-#### 5. Phase 3 Scenario Duration & Costing Decision (Option b Selected)
+#### 5. Phase 3 Scenario Duration & Rescaled Event Timing (Option b Selected)
 - **Problem**: In 30s benchmark scenarios, the 60s cold-start sliding window ($W=60\text{ s}$, `mem_min_samples=10`) spans 100% of the run duration, preventing post-cold-start steady-state evaluation.
 - **Decision Rule Application**: Option (a) kept 30s scenarios and shortened $W$ to 10s. Option (b) retained physical $W=60\text{ s}$ and extended scenario durations to 120s ($50\%$ steady-state operation). Per the governing decision rule, because the estimated AWS EC2 cost of Option (b) is $\le \$1.00$ ($4.08\text{ hr} \times \$0.088/\text{hr} = \$0.359$), **Option (b) is strictly selected**.
+- **Scenario Event Rescaling ($t \ge W=60\text{ s}$)**:
+  - At 30s:
+    - `scenario_1_baseline`: No events.
+    - `scenario_2_burst`: $t=10\text{ s}$ (burst to 1.8c), $t=20\text{ s}$ (burst end to 1.2c).
+    - `scenario_3_capacity_cut`: $t=15\text{ s}$ (capacity cut to 0.90c / 2048 MB).
+    - `scenario_4_churn`: $t=10\text{ s}$ (tenant arrive), $t=20\text{ s}$ (tenant leave).
+    - `scenario_over_declaration` & `scenario_honest_declaration`: No events.
+  - At 120s:
+    - `scenario_1_baseline`: No events.
+    - `scenario_2_burst`: $t=70\text{ s}$ (burst on to 1.8c), $t=95\text{ s}$ (burst end to 1.2c).
+    - `scenario_3_capacity_cut`: $t=70\text{ s}$ (capacity cut to 0.90c / 2048 MB).
+    - `scenario_4_churn`: $t=70\text{ s}$ (tenant arrive), $t=95\text{ s}$ (tenant leave).
+    - `scenario_over_declaration` & `scenario_honest_declaration`: No events.
+- **Hypothesis H8 & Scenario 2 (S2) Implications**:
+  - **H8 (S3 Capacity Cut Contraction)**: Rescaling the capacity cut from $t=15\text{ s}$ to $t=70\text{ s} \ge W$ ensures that the allocator has completed its 60-second cold-start window and settled into steady-state EWMA/p99 floors before the cut occurs. If the cut occurred at $t=15\text{ s}$, contraction dynamics would be confounded with cold-start transients. At $t=70\text{ s}$, H8 cleanly tests whether SAHA latches and contracts within $\le 1$ epoch under genuine steady-state capacity degradation.
+  - **S2 (Flash Crowd Dynamic Burst)**: Rescaling the burst to $t=70\text{ s}$ ensures that SAHA's headroom tracking and fast-up escalation are evaluated from a converged steady state, directly testing rapid scaling under load spikes without cold-start interference.
 - **Contemporaneous Baseline Invariance**: Since all baselines (Adaptive, DRF, Proportional) are executed contemporaneously within the exact same ephemeral EC2 run, extending scenario duration introduces zero baseline drift or comparability bias.
 
 #### 6. Confirmatory Protocol & Option C Matrix (105 Runs)
@@ -230,5 +255,6 @@ To conclusively evaluate the allocator fix in live hardware evaluation, Option C
 - **Active Execution Runtime**: 105 runs × (120s duration + 5s overhead) = $13,125\text{ s} = 218.75\text{ minutes}$ (~3.65 hours).
 - **Instance Watchdog & Buffer**: 245 minutes hard watchdog (covering 218.8m execution + 26.2m bootstrap/export buffer).
 - **Financial Budget**: 245 minutes (4.08 hours) on `c7i-flex.large` ($0.088/hr) = $\mathbf{\$0.359} \le \$1.00$.
+
 
 

@@ -618,50 +618,64 @@ async def _execute_single_run(
         # In live cgroup path, mark requests as rejected for tenants whose memory floor was shed
         req_samples = apply_live_path_shedding(req_samples, plans_history)
 
-
-        # If no live samples returned (e.g. simulation or endpoints unreachable), simulate requests deterministically
-        if not req_samples and trace:
-            for arr in trace:
-                epoch_idx = min(len(plans_history) - 1, max(0, int(arr.scheduled_time_s)))
-                plan_at_t = plans_history[epoch_idx] if plans_history else prev_plan
-                p_cpu = plan_at_t.alloc.get(arr.tenant_id, {}).get("cpu", 0.1) if plan_at_t else 0.1
-                p_mem = plan_at_t.alloc.get(arr.tenant_id, {}).get("mem_mb", 64.0) if plan_at_t else 64.0
-
-                cpu_demand = max(0.1, arr.cpu_units)
-                speedup = min(2.0, max(0.2, p_cpu / cpu_demand))
-                service_ms = arr.nominal_service_ms / speedup
-                latency_ms = service_ms + 5.0
-
-                is_unmet_mem = (
-                    any(ug[0] == arr.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees)
-                    if plan_at_t
-                    else False
-                )
-
-                if is_unmet_mem:
-                    status = "rejected"
-                elif p_mem < arr.mem_mb:
-                    status = "error"
-                elif latency_ms > arr.deadline_ms:
-                    status = "deadline_missed"
-                else:
-                    status = "ok"
-
-
-                req_samples.append(
-                    RequestSample(
-                        run_id=run_id,
-                        arrival_id=arr.arrival_id,
-                        tenant_id=arr.tenant_id,
-                        scheduled_time_s=arr.scheduled_time_s,
-                        dispatch_time_s=round(arr.scheduled_time_s + 0.002, 4),
-                        completion_time_s=round(arr.scheduled_time_s + latency_ms / 1000.0, 4),
-                        latency_ms=round(latency_ms, 2),
-                        service_ms=round(service_ms, 2),
-                        status=status,
-                        provenance=provenance,
+        # Fallback Guard (Item 1):
+        if enforcer is not None:
+            # LIVE MODE: If req_samples is empty, mark run invalid and do NOT synthesize latencies.
+            if not req_samples:
+                run_rec = db.query(Run).filter(Run.id == run_id).first()
+                if run_rec:
+                    run_rec.is_valid = False
+                    run_rec.invalidation_reason = (
+                        "Live loadgen failed or returned 0 request samples; synthetic fallback disabled in live mode."
                     )
+                    db.commit()
+                logger.warning(
+                    "Run %s invalid: Live loadgen produced 0 samples. Synthetic fallback suppressed in live mode.",
+                    run_id,
                 )
+        else:
+            # SIMULATED MODE: synthetic path allowed and explicitly labelled SIMULATED
+            if not req_samples and trace:
+                for arr in trace:
+                    epoch_idx = min(len(plans_history) - 1, max(0, int(arr.scheduled_time_s)))
+                    plan_at_t = plans_history[epoch_idx] if plans_history else prev_plan
+                    p_cpu = plan_at_t.alloc.get(arr.tenant_id, {}).get("cpu", 0.1) if plan_at_t else 0.1
+                    p_mem = plan_at_t.alloc.get(arr.tenant_id, {}).get("mem_mb", 64.0) if plan_at_t else 64.0
+
+                    cpu_demand = max(0.1, arr.cpu_units)
+                    speedup = min(2.0, max(0.2, p_cpu / cpu_demand))
+                    service_ms = arr.nominal_service_ms / speedup
+                    latency_ms = service_ms + 5.0
+
+                    is_unmet_mem = (
+                        any(ug[0] == arr.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees)
+                        if plan_at_t
+                        else False
+                    )
+
+                    if is_unmet_mem:
+                        status = "rejected"
+                    elif p_mem < arr.mem_mb:
+                        status = "error"
+                    elif latency_ms > arr.deadline_ms:
+                        status = "deadline_missed"
+                    else:
+                        status = "ok"
+
+                    req_samples.append(
+                        RequestSample(
+                            run_id=run_id,
+                            arrival_id=arr.arrival_id,
+                            tenant_id=arr.tenant_id,
+                            scheduled_time_s=arr.scheduled_time_s,
+                            dispatch_time_s=round(arr.scheduled_time_s + 0.002, 4),
+                            completion_time_s=round(arr.scheduled_time_s + latency_ms / 1000.0, 4),
+                            latency_ms=round(latency_ms, 2),
+                            service_ms=round(service_ms, 2),
+                            status=status,
+                            provenance="SIMULATED",
+                        )
+                    )
 
         # Persist request samples to DB
         for s in req_samples:
@@ -861,6 +875,7 @@ def _compute_and_save_run_metrics(
         "convergence_initial": float(convergence_initial),
         "convergence_avg": float(convergence_avg),
         "non_tenant_cpu_cores_avg": float(non_tenant_cpu_cores_avg),
+        "unmet_guarantees_count": float(sum(len(p.unmet_guarantees) for p in plans)),
     }
 
     # Idle reserved capacity (allocated minus consumed - CALCULATED)

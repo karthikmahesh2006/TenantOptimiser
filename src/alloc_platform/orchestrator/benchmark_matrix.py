@@ -140,10 +140,11 @@ def main():
     engine = create_engine(f"sqlite:///{args.db_path}")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
-    scenarios_dict = get_predefined_scenarios()
+    scenarios_dict = get_predefined_scenarios(duration_s=args.duration)
 
     print(f"Starting execution of {len(plan)} benchmark runs (duration={args.duration}s)...")
     host_mon = HostMonitor()
+    invalid_runs_count = 0
 
     for idx, (pol, sc_id, seed) in enumerate(plan, 1):
         db = Session()
@@ -184,6 +185,16 @@ def main():
         ))
 
         # Collect metrics
+        run_row = db.query(Run).filter(Run.id == run_id).first()
+        if run_row and not run_row.is_valid:
+            invalid_runs_count += 1
+            print(f"  WARNING: Run {run_id} marked INVALID ({invalid_runs_count}/2 allowed): {run_row.invalidation_reason}")
+            if invalid_runs_count >= 2:
+                db.close()
+                raise RuntimeError(
+                    f"Aborting benchmark_matrix: Encountered {invalid_runs_count} invalid runs with loadgen/sample failures (latest: {run_id})."
+                )
+
         metrics = {m.metric_name: m.metric_value for m in db.query(RunMetric).filter(RunMetric.run_id == run_id).all()}
         print(f"  Completed {run_id}: on_time={metrics.get('on_time_ratio', 0.0):.2%}, p95={metrics.get('p95_latency_ms', 0.0):.2f}ms")
 

@@ -256,5 +256,61 @@ To conclusively evaluate the allocator fix in live hardware evaluation, Option C
 - **Instance Watchdog & Buffer**: 245 minutes hard watchdog (covering 218.8m execution + 26.2m bootstrap/export buffer).
 - **Financial Budget**: 245 minutes (4.08 hours) on `c7i-flex.large` ($0.088/hr) = $\mathbf{\$0.359} \le \$1.00$.
 
+---
+
+### Amendment 6 (2026-10-23): Reduced Exploratory Live Evaluation Protocol (30 Runs)
+
+#### 1. Scope & Nature of Evaluation
+This live evaluation is explicitly declared **EXPLORATORY**, not the confirmatory 105-run design specified in Amendment 5 §6. The objective is to gather empirical hardware evidence on core allocator dynamics within a bounded execution budget, while allowing detached execution without requiring a client laptop to remain open.
+
+#### 2. Evaluated Hypotheses (H5 and H7 Only)
+Only two hypotheses from Section 3 are evaluated in this run:
+1. **Hypothesis H5 (Mitigate Saturation Collapse in Scenario 1)**:
+   - Target Metric: `on_time_ratio` (over Total Offered Load).
+   - Baseline: Contemporaneous live Adaptive in `scenario_1_baseline`.
+   - Statistical Test: One-tailed Mann-Whitney U test ($\alpha = 0.05$) across $n=5$ repeats (seeds `42`–`46`).
+   - Effect-Size Thresholds (strictly frozen):
+     - **Full Pass**: $\text{On-Time}_{\text{SAHA}} \ge 85.0\%$ AND $p < 0.05$ vs contemporaneous live Adaptive.
+     - **Partial Pass**: $80.0\% \le \text{On-Time}_{\text{SAHA}} < 85.0\%$ AND $p < 0.05$ vs contemporaneous live Adaptive.
+     - **Failure**: $\text{On-Time}_{\text{SAHA}} < 80.0\%$ OR $p \ge 0.05$.
+2. **Hypothesis H7 (Preserve Over-Declaration Win in Scenario Over-Declaration)**:
+   - Target Metric: Honest Tenant C `on_time_ratio` and throughput.
+   - Baseline: Contemporaneous live Proportional and contemporaneous live Adaptive in `scenario_over_declaration`.
+   - Statistical Evaluation: $\text{SAHA} \ge \text{Proportional} + 15.0\text{ pp}$ and within $5.0\text{ pp}$ of Adaptive. Failure defined as Tenant C on-time $< \text{Proportional} + 5.0\text{ pp}$.
+
+#### 3. Omitted Hypotheses & Scope Exclusions
+- **Hypothesis H6 (Zero Honest-Load OOM Kills in Scenario 3)**: **NOT TESTED**. Scenario 3 is omitted; no empirical claims are made regarding H6 in this evaluation.
+- **Hypothesis H8 (Rapid Host Capacity Contraction in Scenario 3)**: **NOT TESTED**. Scenario 3 is omitted; no empirical claims are made regarding H8 in this evaluation.
+- **Omitted Arms**:
+  - `saha_v1_frozen` negative control arm (20 runs across S1-S4) is omitted.
+  - Pre-declared ablation suite (25 runs on S1) is omitted.
+  - Scenario 2 (Burst) and Scenario 3 (Capacity Cut) are omitted.
+- **Rationale for Scope Reduction**: Time, complexity, and operational risk. Running 105 runs requires ~4 hours on live EC2; the reduced 30-run suite executes in ~62.5 minutes (88-minute watchdog buffer), minimizing cloud costs, watchdog risk, and providing rapid detached validation of primary allocator claims.
+
+#### 4. Reduced 30-Run Preset Composition
+- Preset: `--preset reduced30`
+- Duration: 120 seconds per run
+- Seeds: `42`, `43`, `44`, `45`, `46` ($n = 5$ per cell)
+- Cells:
+  1. `scenario_1_baseline` × {`saha`, `adaptive`, `drf`} (15 runs)
+  2. `scenario_over_declaration` × {`saha`, `adaptive`, `proportional`} (15 runs)
+- Total Runs: **30 runs**
+- Watchdog Cap: $30 \times (120\text{ s} + 5.0\text{ s}) = 3750\text{ s} (62.50\text{ m}) + 25\text{ m} = 87.50\text{ m} \to \mathbf{88\text{ minutes}}$.
+
+#### 5. Scenario Event Timestamps (Item 1.3 Audit)
+- At 30s:
+  - `scenario_1_baseline`: No events (steady-state).
+  - `scenario_2_burst`: $t=10\text{ s}$, $t=20\text{ s}$.
+  - `scenario_3_capacity_cut`: $t=15\text{ s}$.
+  - `scenario_4_churn`: $t=10\text{ s}$, $t=20\text{ s}$.
+  - `scenario_over_declaration`: No events (steady-state).
+- At 120s:
+  - `scenario_1_baseline`: No events (steady-state).
+  - `scenario_2_burst`: $t=70\text{ s}$, $t=95\text{ s}$ (both $\ge W = 60\text{ s}$, post cold-start).
+  - `scenario_3_capacity_cut`: $t=70\text{ s}$ ($\ge W = 60\text{ s}$, post cold-start).
+  - `scenario_4_churn`: $t=70\text{ s}$, $t=95\text{ s}$ ($\ge W = 60\text{ s}$, post cold-start).
+  - `scenario_over_declaration`: No events (steady-state).
+- **Preset Audit Outcome**: The two scenarios in the `reduced30` preset (`scenario_1_baseline` and `scenario_over_declaration`) contain zero timed perturbation events; both evaluate steady-state multi-tenant allocation and quota reclamation. All other scenarios (S2, S3, S4) have been rescaled to occur strictly after cold start ($t \ge 60\text{ s}$).
+
 
 

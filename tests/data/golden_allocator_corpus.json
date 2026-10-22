@@ -1,0 +1,399 @@
+{
+  "standard": {
+    "input": {
+      "pool": {
+        "capacity": {
+          "cpu": 1.5,
+          "mem_mb": 3072.0
+        }
+      },
+      "tenants": [
+        {
+          "id": "t_cpu",
+          "name": "CPU",
+          "weight": 2.0,
+          "priority": 1,
+          "arrival_seq": 1,
+          "active": true,
+          "demand": {
+            "cpu": 1.2,
+            "mem_mb": 512.0
+          },
+          "minimum": {
+            "cpu": 0.2,
+            "mem_mb": 128.0
+          },
+          "workload_type": "cpu_heavy"
+        },
+        {
+          "id": "t_mem",
+          "name": "Mem",
+          "weight": 1.0,
+          "priority": 1,
+          "arrival_seq": 2,
+          "active": true,
+          "demand": {
+            "cpu": 0.4,
+            "mem_mb": 2048.0
+          },
+          "minimum": {
+            "cpu": 0.1,
+            "mem_mb": 512.0
+          },
+          "workload_type": "memory_heavy"
+        },
+        {
+          "id": "t_mix",
+          "name": "Mix",
+          "weight": 1.0,
+          "priority": 1,
+          "arrival_seq": 3,
+          "active": true,
+          "demand": {
+            "cpu": 0.8,
+            "mem_mb": 1024.0
+          },
+          "minimum": {
+            "cpu": 0.1,
+            "mem_mb": 256.0
+          },
+          "workload_type": "mixed"
+        }
+      ],
+      "obs": {
+        "t_cpu": {
+          "usage": {
+            "cpu": 0.8,
+            "mem_mb": 400.0
+          },
+          "throttle_ratio": 0.0
+        },
+        "t_mem": {
+          "usage": {
+            "cpu": 0.2,
+            "mem_mb": 1500.0
+          },
+          "throttle_ratio": 0.0
+        },
+        "t_mix": {
+          "usage": {
+            "cpu": 0.4,
+            "mem_mb": 600.0
+          },
+          "throttle_ratio": 0.0
+        }
+      }
+    },
+    "fcfs": {
+      "alloc": {
+        "t_cpu": {
+          "cpu": 1.2,
+          "mem_mb": 512.0
+        },
+        "t_mem": {
+          "cpu": 0.3,
+          "mem_mb": 2048.0
+        },
+        "t_mix": {
+          "cpu": 0.0,
+          "mem_mb": 512.0
+        }
+      },
+      "unmet_guarantees": [
+        [
+          "t_mix",
+          "cpu"
+        ]
+      ]
+    },
+    "proportional": {
+      "alloc": {
+        "t_cpu": {
+          "cpu": 0.933333,
+          "mem_mb": 512.0
+        },
+        "t_mem": {
+          "cpu": 0.21,
+          "mem_mb": 1706.666667
+        },
+        "t_mix": {
+          "cpu": 0.356667,
+          "mem_mb": 853.333333
+        }
+      },
+      "unmet_guarantees": []
+    },
+    "drf": {
+      "alloc": {
+        "t_cpu": {
+          "cpu": 0.882353,
+          "mem_mb": 376.470588
+        },
+        "t_mem": {
+          "cpu": 0.176471,
+          "mem_mb": 903.529412
+        },
+        "t_mix": {
+          "cpu": 0.441176,
+          "mem_mb": 564.705882
+        }
+      },
+      "unmet_guarantees": []
+    },
+    "adaptive": {
+      "alloc": {
+        "t_cpu": {
+          "cpu": 0.849038,
+          "mem_mb": 464.0
+        },
+        "t_mem": {
+          "cpu": 0.24,
+          "mem_mb": 1800.0
+        },
+        "t_mix": {
+          "cpu": 0.410962,
+          "mem_mb": 664.0
+        }
+      },
+      "unmet_guarantees": []
+    }
+  },
+  "saturated_cpu": {
+    "input": {
+      "pool": {
+        "capacity": {
+          "cpu": 1.5,
+          "mem_mb": 3072.0
+        }
+      },
+      "tenants": [
+        {
+          "id": "t1",
+          "name": "T1",
+          "weight": 1.0,
+          "priority": 1,
+          "arrival_seq": 1,
+          "active": true,
+          "demand": {
+            "cpu": 1.5,
+            "mem_mb": 512.0
+          },
+          "minimum": {
+            "cpu": 0.3,
+            "mem_mb": 128.0
+          },
+          "workload_type": "cpu_heavy"
+        },
+        {
+          "id": "t2",
+          "name": "T2",
+          "weight": 1.0,
+          "priority": 1,
+          "arrival_seq": 2,
+          "active": true,
+          "demand": {
+            "cpu": 1.5,
+            "mem_mb": 512.0
+          },
+          "minimum": {
+            "cpu": 0.3,
+            "mem_mb": 128.0
+          },
+          "workload_type": "cpu_heavy"
+        }
+      ],
+      "obs": {
+        "t1": {
+          "usage": {
+            "cpu": 1.4,
+            "mem_mb": 400.0
+          },
+          "throttle_ratio": 0.2
+        },
+        "t2": {
+          "usage": {
+            "cpu": 1.4,
+            "mem_mb": 400.0
+          },
+          "throttle_ratio": 0.2
+        }
+      }
+    },
+    "fcfs": {
+      "alloc": {
+        "t1": {
+          "cpu": 1.5,
+          "mem_mb": 512.0
+        },
+        "t2": {
+          "cpu": 0.0,
+          "mem_mb": 512.0
+        }
+      },
+      "unmet_guarantees": [
+        [
+          "t2",
+          "cpu"
+        ]
+      ]
+    },
+    "proportional": {
+      "alloc": {
+        "t1": {
+          "cpu": 0.75,
+          "mem_mb": 512.0
+        },
+        "t2": {
+          "cpu": 0.75,
+          "mem_mb": 512.0
+        }
+      },
+      "unmet_guarantees": []
+    },
+    "drf": {
+      "alloc": {
+        "t1": {
+          "cpu": 0.75,
+          "mem_mb": 256.0
+        },
+        "t2": {
+          "cpu": 0.75,
+          "mem_mb": 256.0
+        }
+      },
+      "unmet_guarantees": []
+    },
+    "adaptive": {
+      "alloc": {
+        "t1": {
+          "cpu": 0.75,
+          "mem_mb": 464.0
+        },
+        "t2": {
+          "cpu": 0.75,
+          "mem_mb": 464.0
+        }
+      },
+      "unmet_guarantees": []
+    }
+  },
+  "memory_binding": {
+    "input": {
+      "pool": {
+        "capacity": {
+          "cpu": 1.5,
+          "mem_mb": 3072.0
+        }
+      },
+      "tenants": [
+        {
+          "id": "t_heavy_mem",
+          "name": "HeavyMem",
+          "weight": 2.0,
+          "priority": 1,
+          "arrival_seq": 1,
+          "active": true,
+          "demand": {
+            "cpu": 0.5,
+            "mem_mb": 2500.0
+          },
+          "minimum": {
+            "cpu": 0.1,
+            "mem_mb": 1500.0
+          },
+          "workload_type": "memory_heavy"
+        },
+        {
+          "id": "t_light_mem",
+          "name": "LightMem",
+          "weight": 1.0,
+          "priority": 1,
+          "arrival_seq": 2,
+          "active": true,
+          "demand": {
+            "cpu": 1.0,
+            "mem_mb": 1800.0
+          },
+          "minimum": {
+            "cpu": 0.2,
+            "mem_mb": 1000.0
+          },
+          "workload_type": "mixed"
+        }
+      ],
+      "obs": {
+        "t_heavy_mem": {
+          "usage": {
+            "cpu": 0.4,
+            "mem_mb": 2200.0
+          },
+          "throttle_ratio": 0.0
+        },
+        "t_light_mem": {
+          "usage": {
+            "cpu": 0.8,
+            "mem_mb": 1400.0
+          },
+          "throttle_ratio": 0.0
+        }
+      }
+    },
+    "fcfs": {
+      "alloc": {
+        "t_heavy_mem": {
+          "cpu": 0.5,
+          "mem_mb": 2500.0
+        },
+        "t_light_mem": {
+          "cpu": 1.0,
+          "mem_mb": 572.0
+        }
+      },
+      "unmet_guarantees": [
+        [
+          "t_light_mem",
+          "mem_mb"
+        ]
+      ]
+    },
+    "proportional": {
+      "alloc": {
+        "t_heavy_mem": {
+          "cpu": 0.5,
+          "mem_mb": 1908.571429
+        },
+        "t_light_mem": {
+          "cpu": 1.0,
+          "mem_mb": 1163.428571
+        }
+      },
+      "unmet_guarantees": []
+    },
+    "drf": {
+      "alloc": {
+        "t_heavy_mem": {
+          "cpu": 0.4144,
+          "mem_mb": 2072.0
+        },
+        "t_light_mem": {
+          "cpu": 0.555556,
+          "mem_mb": 1000.0
+        }
+      },
+      "unmet_guarantees": []
+    },
+    "adaptive": {
+      "alloc": {
+        "t_heavy_mem": {
+          "cpu": 0.383937,
+          "mem_mb": 1608.0
+        },
+        "t_light_mem": {
+          "cpu": 0.612759,
+          "mem_mb": 1464.0
+        }
+      },
+      "unmet_guarantees": []
+    }
+  }
+}

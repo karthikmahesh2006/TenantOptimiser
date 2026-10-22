@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from alloc_platform.allocator.adaptive import AdaptiveAllocator, AdaptiveParams
 from alloc_platform.allocator.drf import allocate_drf
 from alloc_platform.allocator.fcfs import allocate_fcfs
+from alloc_platform.allocator.saha import SahaAllocator
 from alloc_platform.allocator.metrics import (
     allocated_util,
     churn,
@@ -233,6 +234,7 @@ async def _execute_single_run(
     if "no_surplus" in pol:
         adaptive_params.use_surplus = False
     adaptive_inst = AdaptiveAllocator(params=adaptive_params)
+    saha_inst = SahaAllocator()
 
     plans_history: List[Plan] = []
     usages_history: List[List[Dict[str, float]]] = []
@@ -494,7 +496,12 @@ async def _execute_single_run(
                 plan = adaptive_inst.allocate(
                     curr_pool, active_tenants, obs, prev_plan, now=step_time
                 )
+            elif pol == "saha":
+                plan = saha_inst.allocate(
+                    curr_pool, active_tenants, obs, prev_plan, now=step_time
+                )
             else:
+
                 plan = allocate_proportional(curr_pool, active_tenants, obs, prev_plan)
 
             plans_history.append(plan)
@@ -585,12 +592,21 @@ async def _execute_single_run(
                 service_ms = arr.nominal_service_ms / speedup
                 latency_ms = service_ms + 5.0
 
-                if p_mem < arr.mem_mb:
+                is_unmet_mem = (
+                    any(ug[0] == arr.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees)
+                    if plan_at_t
+                    else False
+                )
+
+                if is_unmet_mem:
+                    status = "rejected"
+                elif p_mem < arr.mem_mb:
                     status = "error"
                 elif latency_ms > arr.deadline_ms:
                     status = "deadline_missed"
                 else:
                     status = "ok"
+
 
                 req_samples.append(
                     RequestSample(

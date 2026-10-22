@@ -46,6 +46,29 @@ class PlatformConfig(BaseModel):
     ewma_alpha: float = 0.3
     lambda_churn: float = 0.10
 
+    # SAHA (Saturation-Aware Hybrid Allocator) hyperparameters
+    # Tunable parameters for Stage 6 calibration (exactly 12 tunables):
+    saha_ewma_alpha: float = 0.30
+    saha_headroom_h: float = 0.20
+    saha_throttle_step: float = 1.25
+    saha_rho_low: float = 0.85
+    saha_rho_high: float = 1.00
+    saha_mem_floor_mult: float = 1.15
+    saha_mem_margin_mb: float = 64.0
+    saha_mem_margin_frac: float = 0.10
+    saha_mem_window_s: float = 60.0
+    saha_mem_contract_step: float = 0.05
+    saha_cpu_contract_rate: float = 0.20
+    saha_deadband: float = 0.05
+
+    # SAHA Structural parameters (fixed, not tuned):
+    saha_reclaim_min_share_ratio: float = 0.0
+    saha_mem_min_samples: int = 10
+    saha_cut_latch_epochs: int = 3
+    saha_dhat_min_epsilon: float = 1e-4
+    saha_cap_cut_tol: float = 1e-3
+
+
     # Enforcement & Docker
     alloc_mode: str = Field(
         default_factory=lambda: os.getenv("ALLOC_MODE", "auto").lower()

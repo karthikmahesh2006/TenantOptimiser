@@ -917,11 +917,14 @@ def test_runner_non_saha_live_enforcer_regression():
         assert s.status == "ok", f"Sample for tenant {s.tenant_id} must remain 'ok' in live path"
 
     # 3. Call the full _execute_single_run code path with a non-SAHA policy (Adaptive)
+    # Passing a real mock enforcer and mock run_load so the live cgroup shedding branch executes!
+    from unittest.mock import MagicMock
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from alloc_platform.db.models import Base, Experiment, PoolModel, Run, RequestSampleModel
     from alloc_platform.orchestrator.scenario import get_predefined_scenarios
     from alloc_platform.telemetry.host import HostMonitor
+    import alloc_platform.orchestrator.runner as runner_mod
     import asyncio
 
     engine = create_engine("sqlite:///:memory:")
@@ -933,24 +936,60 @@ def test_runner_non_saha_live_enforcer_regression():
     db.commit()
 
     scen = get_predefined_scenarios()["scenario_1_baseline"]
-    scen.duration_s = 5
+    scen.duration_s = 2
     config.epoch_interval_s = 0.0
 
-    asyncio.run(_execute_single_run(
-        db=db,
-        run_id="run_reg_test",
-        policy="adaptive",
-        scen_spec=scen,
-        enforcer=None,
-        host_mon=HostMonitor(),
-        cancel_event=asyncio.Event(),
-    ))
+    fake_enforcer = MagicMock()
+    fake_enforcer.ensure_network.return_value = None
+    fake_enforcer.create_tenant.side_effect = lambda spec: f"cid_{spec.tenant_id}"
+    fake_container = MagicMock()
+    fake_container.attrs = {"NetworkSettings": {"Networks": {config.tenant_network_name: {"IPAddress": "127.0.0.1"}}}}
+    fake_enforcer.client.containers.get.return_value = fake_container
+    fake_enforcer.apply_limits.return_value = MagicMock(apply_ms=0.5)
 
-    # Verify that in the runner code path for Adaptive, ZERO samples receive 'rejected' status
-    req_samples_db = db.query(RequestSampleModel).filter(RequestSampleModel.run_id == "run_reg_test").all()
-    rejected_count = sum(1 for s in req_samples_db if s.status == "rejected")
-    assert rejected_count == 0, "Non-SAHA allocator runner execution must produce zero rejected samples"
-    db.close()
+    async def mock_run_load(trace, endpoints, run_id, stop_event):
+        return [
+            RequestSample(
+                run_id=run_id,
+                arrival_id=f"arr_{t.id}_0",
+                tenant_id=t.id,
+                scheduled_time_s=0.5,
+                dispatch_time_s=0.502,
+                completion_time_s=0.520,
+                latency_ms=18.0,
+                service_ms=16.0,
+                status="ok",
+                provenance="MEASURED",
+            )
+            for t in scen.tenants
+        ]
+
+    orig_run_load = runner_mod.run_load
+    runner_mod.run_load = mock_run_load
+
+    try:
+        asyncio.run(_execute_single_run(
+            db=db,
+            run_id="run_reg_test",
+            policy="adaptive",
+            scen_spec=scen,
+            enforcer=fake_enforcer,
+            host_mon=HostMonitor(),
+            cancel_event=asyncio.Event(),
+        ))
+
+        # Verify fake enforcer was actively invoked on live path
+        assert fake_enforcer.apply_limits.call_count > 0, "Fake enforcer apply_limits must be called"
+
+        # Verify that in the live enforcer runner path for Adaptive, all samples passed through apply_live_path_shedding with ZERO 'rejected'
+        req_samples_db = db.query(RequestSampleModel).filter(RequestSampleModel.run_id == "run_reg_test").all()
+        assert len(req_samples_db) == len(scen.tenants), "All live samples must be recorded in DB"
+        rejected_count = sum(1 for s in req_samples_db if s.status == "rejected")
+        assert rejected_count == 0, "Non-SAHA allocator live runner execution must produce zero rejected samples"
+        assert all(s.status == "ok" for s in req_samples_db)
+    finally:
+        runner_mod.run_load = orig_run_load
+        db.close()
 
 
 

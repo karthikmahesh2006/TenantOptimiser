@@ -1,0 +1,47 @@
+{
+  "description": "Preserved output of the first degenerate calibration run caused by import-time default binding in SahaParams dataclass. All candidates returned identical metrics because runtime config modifications failed to propagate into SahaParams instances.",
+  "timestamp": "2026-10-22T16:39:20Z",
+  "task_id": "f1f98206-78b1-4363-b6ff-975f1885d3b2/task-5442",
+  "results": [
+    {
+      "candidate": "C1_Baseline_Default",
+      "target_params": {"alpha": 0.3, "h": 0.2, "step": 1.25, "rho_low": 0.85, "rho_high": 1.0},
+      "mean_on_time_ratio": 0.5853,
+      "mean_throughput": 45.0,
+      "mean_p95_latency_ms": 83.7,
+      "mean_throttled_while_spare_ratio": 0.0667
+    },
+    {
+      "candidate": "C2_Conservative",
+      "target_params": {"alpha": 0.15, "h": 0.1, "step": 1.15, "rho_low": 0.8, "rho_high": 0.95},
+      "mean_on_time_ratio": 0.5853,
+      "mean_throughput": 45.0,
+      "mean_p95_latency_ms": 83.7,
+      "mean_throttled_while_spare_ratio": 0.0667
+    },
+    {
+      "candidate": "C3_Responsive",
+      "target_params": {"alpha": 0.5, "h": 0.3, "step": 1.35, "rho_low": 0.85, "rho_high": 1.0},
+      "mean_on_time_ratio": 0.5853,
+      "mean_throughput": 45.0,
+      "mean_p95_latency_ms": 83.7,
+      "mean_throttled_while_spare_ratio": 0.0667
+    },
+    {
+      "candidate": "C4_Wide_Hysteresis",
+      "target_params": {"alpha": 0.3, "h": 0.2, "step": 1.25, "rho_low": 0.8, "rho_high": 1.05},
+      "mean_on_time_ratio": 0.5853,
+      "mean_throughput": 45.0,
+      "mean_p95_latency_ms": 83.7,
+      "mean_throttled_while_spare_ratio": 0.0667
+    },
+    {
+      "candidate": "C5_Narrow_Hysteresis",
+      "target_params": {"alpha": 0.3, "h": 0.2, "step": 1.25, "rho_low": 0.9, "rho_high": 1.0},
+      "mean_on_time_ratio": 0.5853,
+      "mean_throughput": 45.0,
+      "mean_p95_latency_ms": 83.7,
+      "mean_throttled_while_spare_ratio": 0.0667
+    }
+  ]
+}

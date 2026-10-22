@@ -20,107 +20,6 @@ try:
 except ImportError:
     run_ssm = None
 
-try:
-    import boto3
-except ImportError:
-    boto3 = None
-
-
-def authorize_security_group_ingress(
-    sg_id: str,
-    region: str,
-    ip_permissions: Optional[List[dict]] = None,
-    dry_run: bool = False,
-) -> dict:
-    """Authorizes ingress rules on security group and prints the actual return value."""
-    rule_dict = ip_permissions or [
-        {
-            "IpProtocol": "tcp",
-            "FromPort": 22,
-            "ToPort": 22,
-            "IpRanges": [{"CidrIp": "127.0.0.1/32", "Description": "Ephemeral loopback/operator probe"}],
-        }
-    ]
-    if dry_run:
-        print("\n[DRY-RUN] authorize_security_group_ingress:")
-        print(f"  Target Security Group: {sg_id}")
-        print(f"  Region: {region}")
-        print("  Rule Dict WOULD BE Authorized:")
-        print(json.dumps(rule_dict, indent=2))
-        ret = {"Return": True, "DryRun": True, "SecurityGroupRules": rule_dict}
-        print(f"  Actual Return Value (Dry-Run): {ret}")
-        return ret
-
-    if boto3:
-        client = boto3.client("ec2", region_name=region)
-        resp = client.authorize_security_group_ingress(GroupId=sg_id, IpPermissions=rule_dict)
-        print(f"boto3 authorize_security_group_ingress returned: {resp}")
-        return resp
-    else:
-        cmd = [
-            "aws", "ec2", "authorize-security-group-ingress",
-            "--group-id", sg_id,
-            "--ip-permissions", json.dumps(rule_dict),
-            "--region", region,
-            "--output", "json",
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        resp = json.loads(res.stdout) if res.stdout.strip() else {"Return": True}
-        print(f"aws cli authorize_security_group_ingress returned: {resp}")
-        return resp
-
-
-def revoke_security_group_ingress(
-    sg_id: str,
-    region: str,
-    ip_permissions: Optional[List[dict]] = None,
-    dry_run: bool = False,
-) -> dict:
-    """Revokes ingress rules on security group and prints the actual return value."""
-    rule_dict = ip_permissions or [
-        {
-            "IpProtocol": "tcp",
-            "FromPort": 22,
-            "ToPort": 22,
-            "IpRanges": [{"CidrIp": "127.0.0.1/32", "Description": "Ephemeral loopback/operator probe"}],
-        }
-    ]
-    if dry_run:
-        print("\n[DRY-RUN] revoke_security_group_ingress (guaranteed cleanup/zero-inbound invariant):")
-        print(f"  Target Security Group: {sg_id}")
-        print(f"  Region: {region}")
-        print("  Rule Dict WOULD BE Revoked:")
-        print(json.dumps(rule_dict, indent=2))
-        ret = {"Return": True, "DryRun": True, "RevokedRules": rule_dict}
-        print(f"  Actual Return Value (Dry-Run): {ret}")
-        return ret
-
-    if boto3:
-        client = boto3.client("ec2", region_name=region)
-        try:
-            resp = client.revoke_security_group_ingress(GroupId=sg_id, IpPermissions=rule_dict)
-        except Exception as e:
-            resp = {"Return": False, "Error": str(e)}
-        print(f"boto3 revoke_security_group_ingress returned: {resp}")
-        return resp
-    else:
-        cmd = [
-            "aws", "ec2", "revoke-security-group-ingress",
-            "--group-id", sg_id,
-            "--ip-permissions", json.dumps(rule_dict),
-            "--region", region,
-            "--output", "json",
-        ]
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            resp = json.loads(res.stdout) if res.stdout.strip() else {"Return": True}
-        except Exception as e:
-            resp = {"Return": False, "Error": str(e)}
-        print(f"aws cli revoke_security_group_ingress returned: {resp}")
-        return resp
-
-
-
 def load_state() -> Dict[str, str]:
     state_file = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "infra", "state", "resources.env")
@@ -136,7 +35,7 @@ def load_state() -> Dict[str, str]:
     return state
 
 
-def verify_security_group_zero_inbound(sg_id: str, region: str, dry_run: bool = False) -> int:
+def verify_security_group_zero_inbound(sg_id: str, region: str, dry_run: bool = False):
     """Verifies that the security group has strictly zero inbound rules."""
     cmd = [
         "aws",
@@ -155,7 +54,7 @@ def verify_security_group_zero_inbound(sg_id: str, region: str, dry_run: bool = 
         print("[DRY-RUN] AWS CLI API Call:")
         print(f"  Command: {' '.join(cmd)}")
         print("  Action: DescribeSecurityGroups (asserting len(IpPermissions) == 0)")
-        return 0
+        return "dry-run"
 
     res = subprocess.run(cmd, capture_output=True, text=True, check=True)
     inbound_rules = json.loads(res.stdout)
@@ -459,6 +358,8 @@ def main():
     print(f"S3 Artifact Bucket: {bucket}")
     print(f"Watchdog Budget:    {args.watchdog_minutes} minutes")
 
+    pre_rules = verify_security_group_zero_inbound(sg_id, region, dry_run=args.dry_run)
+
     metadata = {
         "launcher": "scripts/launch_ephemeral_eval.py",
         "dry_run": args.dry_run,
@@ -468,35 +369,36 @@ def main():
         "iam_profile": iam_profile,
         "s3_bucket": bucket,
         "watchdog_minutes": args.watchdog_minutes,
-        "pre_launch_sg_inbound_rules": 0,
+        "pre_launch_sg_inbound_rules": pre_rules,
         "launch_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
-    instance_id = launch_instance(
-        image_id=image_id,
-        instance_type=args.instance_type,
-        subnet_id=subnet_id,
-        sg_id=sg_id,
-        iam_profile=iam_profile,
-        region=region,
-        watchdog_minutes=args.watchdog_minutes,
-        dry_run=args.dry_run,
-    )
-
+    instance_id = None
     try:
+        instance_id = launch_instance(
+            image_id=image_id,
+            instance_type=args.instance_type,
+            subnet_id=subnet_id,
+            sg_id=sg_id,
+            iam_profile=iam_profile,
+            region=region,
+            watchdog_minutes=args.watchdog_minutes,
+            dry_run=args.dry_run,
+        )
         wait_for_ssm(instance_id=instance_id, region=region, dry_run=args.dry_run)
         execute_confirmatory_suite(instance_id=instance_id, region=region, bucket=bucket, dry_run=args.dry_run)
     finally:
-        # Guaranteed cleanup: revoke security group ingress and assert 0 inbound rules
-        revoke_security_group_ingress(sg_id=sg_id, region=region, dry_run=args.dry_run)
-        extract_artifacts_and_terminate(
-            instance_id=instance_id,
-            sg_id=sg_id,
-            bucket=bucket,
-            region=region,
-            metadata=metadata,
-            dry_run=args.dry_run,
-        )
+        # Guaranteed cleanup: export artifacts, verify 0 inbound rules, write metadata, and terminate instance.
+        # Any exception raised in the try block will automatically re-raise after this finally block executes.
+        if instance_id is not None:
+            extract_artifacts_and_terminate(
+                instance_id=instance_id,
+                sg_id=sg_id,
+                bucket=bucket,
+                region=region,
+                metadata=metadata,
+                dry_run=args.dry_run,
+            )
 
 
 if __name__ == "__main__":

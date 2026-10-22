@@ -3,7 +3,10 @@ import os
 import sys
 from datetime import datetime
 
-sys.path.insert(0, "/opt/alloc/current/src")
+repo_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+if repo_src not in sys.path:
+    sys.path.insert(0, repo_src)
+
 
 from alloc_platform.db.models import Experiment, Run, RunMetric
 from alloc_platform.db.session import SessionLocal, init_db

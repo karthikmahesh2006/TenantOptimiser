@@ -992,5 +992,67 @@ def test_runner_non_saha_live_enforcer_regression():
         db.close()
 
 
+def test_oversubscribed_declared_demand_does_not_shed_under_realistic_rss():
+    """Phase 2.3: Reproduces real hardware conditions: pool 1.5c / 3072 MB; tenants declare 512/2048/1024 MB
+    (sum 3584 MB > 3072 MB) with realistic physical RSS ~100-300 MB.
+    Asserts at epochs 0 and 1 that no tenant is shed to 0 MB and unmet_guarantees is empty.
+    """
+    allocator = SahaAllocator()
+    pool = Pool(capacity={"cpu": 1.5, "mem_mb": 3072.0})
+    tenants = [
+        Tenant(id="tenant_cpu", name="CPU Tenant", weight=2.0, priority=2, arrival_seq=1, active=True,
+               demand={"cpu": 1.2, "mem_mb": 512.0}, minimum={"cpu": 0.3, "mem_mb": 128.0}),
+        Tenant(id="tenant_mem", name="Mem Tenant", weight=1.0, priority=1, arrival_seq=2, active=True,
+               demand={"cpu": 0.4, "mem_mb": 2048.0}, minimum={"cpu": 0.1, "mem_mb": 512.0}),
+        Tenant(id="tenant_mix", name="Mix Tenant", weight=1.5, priority=1, arrival_seq=3, active=True,
+               demand={"cpu": 0.8, "mem_mb": 1024.0}, minimum={"cpu": 0.2, "mem_mb": 256.0}),
+    ]
+    # Realistic RSS ~100-300 MB (well below pool capacity of 3072 MB)
+    obs_epoch0 = {
+        "tenant_cpu": TenantObs(usage={"cpu": 0.8, "mem_mb": 120.0}, throttle_ratio=0.0, backlog=0),
+        "tenant_mem": TenantObs(usage={"cpu": 0.2, "mem_mb": 280.0}, throttle_ratio=0.0, backlog=0),
+        "tenant_mix": TenantObs(usage={"cpu": 0.5, "mem_mb": 180.0}, throttle_ratio=0.0, backlog=0),
+    }
+
+    # Epoch 0
+    plan0 = allocator.allocate(pool, tenants, obs_epoch0, prev=None, now=0.0)
+    assert plan0.unmet_guarantees == [], f"Epoch 0 must not produce unmet guarantees: {plan0.unmet_guarantees}"
+    for t in tenants:
+        assert plan0.alloc[t.id]["mem_mb"] > 0.0, f"Tenant {t.id} shed to 0 MB at epoch 0"
+
+    # Epoch 1
+    obs_epoch1 = {
+        "tenant_cpu": TenantObs(usage={"cpu": 0.85, "mem_mb": 130.0}, throttle_ratio=0.0, backlog=0),
+        "tenant_mem": TenantObs(usage={"cpu": 0.22, "mem_mb": 290.0}, throttle_ratio=0.0, backlog=0),
+        "tenant_mix": TenantObs(usage={"cpu": 0.52, "mem_mb": 190.0}, throttle_ratio=0.0, backlog=0),
+    }
+    plan1 = allocator.allocate(pool, tenants, obs_epoch1, prev=plan0, now=1.0)
+    assert plan1.unmet_guarantees == [], f"Epoch 1 must not produce unmet guarantees: {plan1.unmet_guarantees}"
+    for t in tenants:
+        assert plan1.alloc[t.id]["mem_mb"] > 0.0, f"Tenant {t.id} shed to 0 MB at epoch 1"
+
+
+def test_genuine_infeasibility_triggers_condition4_priority_shedding():
+    """Phase 2.4: Genuine infeasibility (sum of minimum floors > capacity) must strictly
+    trigger Condition 4 priority shedding (lowest dominant share first).
+    """
+    allocator = SahaAllocator()
+    pool = Pool(capacity={"cpu": 1.5, "mem_mb": 1000.0})
+    tenants = [
+        Tenant(id="tenant_cpu", name="CPU Tenant", weight=1.0, priority=1, arrival_seq=1, active=True,
+               demand={"cpu": 1.0, "mem_mb": 400.0}, minimum={"cpu": 0.1, "mem_mb": 100.0}),
+        Tenant(id="tenant_mem", name="Mem Tenant", weight=1.0, priority=1, arrival_seq=2, active=True,
+               demand={"cpu": 0.2, "mem_mb": 800.0}, minimum={"cpu": 0.1, "mem_mb": 200.0}),
+    ]
+    # Saturated physical RSS forcing floors to exceed pool capacity
+    obs = {
+        "tenant_cpu": TenantObs(usage={"cpu": 0.9, "mem_mb": 400.0}, throttle_ratio=0.0, backlog=0),
+        "tenant_mem": TenantObs(usage={"cpu": 0.1, "mem_mb": 800.0}, throttle_ratio=0.0, backlog=0),
+    }
+    plan = allocator.allocate(pool, tenants, obs, prev=None, now=10.0)
+    assert len(plan.unmet_guarantees) > 0, "Genuine infeasibility must trigger unmet guarantees"
+    assert ("tenant_mem", "mem_mb") in plan.unmet_guarantees
+
+
 
 

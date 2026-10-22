@@ -17,6 +17,7 @@ from alloc_platform.allocator.adaptive import AdaptiveAllocator, AdaptiveParams
 from alloc_platform.allocator.drf import allocate_drf
 from alloc_platform.allocator.fcfs import allocate_fcfs
 from alloc_platform.allocator.saha import SahaAllocator, SahaParams
+from alloc_platform.allocator.saha_v1_frozen import SahaV1FrozenAllocator
 from alloc_platform.allocator.metrics import (
     allocated_util,
     churn,
@@ -265,6 +266,7 @@ async def _execute_single_run(
         saha_params.deadband,
     )
     saha_inst = SahaAllocator(params=saha_params)
+    saha_v1_frozen_inst = SahaV1FrozenAllocator()
 
     plans_history: List[Plan] = []
     usages_history: List[List[Dict[str, float]]] = []
@@ -524,6 +526,10 @@ async def _execute_single_run(
                 plan = allocate_drf(curr_pool, active_tenants, obs, prev_plan)
             elif pol.startswith("adaptive") or pol.startswith("no_"):
                 plan = adaptive_inst.allocate(
+                    curr_pool, active_tenants, obs, prev_plan, now=step_time
+                )
+            elif pol == "saha_v1_frozen":
+                plan = saha_v1_frozen_inst.allocate(
                     curr_pool, active_tenants, obs, prev_plan, now=step_time
                 )
             elif pol.startswith("saha"):

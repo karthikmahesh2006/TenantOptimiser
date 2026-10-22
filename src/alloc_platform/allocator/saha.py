@@ -338,15 +338,18 @@ class SahaAllocator:
             window_rss = [r_val for (_, r_val) in self.rss_history[t.id]]
             p99_rss = float(np.percentile(window_rss, 99)) if window_rss else curr_rss
 
+            decl_mem = float(t.demand.get("mem_mb", 512.0))
             margin = max(self.params.mem_margin_mb, self.params.mem_margin_frac * curr_rss)
             calc_floor = p99_rss * self.params.mem_floor_mult + margin
 
             # Cold start guard (Condition 2)
-            prev_mem = (
-                prev_alloc.get(t.id, {}).get("mem_mb", float(t.demand.get("mem_mb", 512.0)))
-                if prev_alloc
-                else float(t.demand.get("mem_mb", 512.0))
-            )
+            # When prev_alloc is None and declared-floor gate is inactive (sum(D_mem) > C_mem),
+            # epoch-0 cold start floor follows ADR-011 §2.2 (p99 RSS + margin), NOT demand.
+            if prev_alloc is not None and t.id in prev_alloc:
+                prev_mem = float(prev_alloc[t.id].get("mem_mb", calc_floor))
+            else:
+                prev_mem = decl_mem if is_declared_floor_active else calc_floor
+
             is_cold = (len(self.rss_history[t.id]) < self.params.mem_min_samples) or (
                 now < self.params.mem_window_s
             )
@@ -358,7 +361,6 @@ class SahaAllocator:
                 floor_val = calc_floor
 
             # Item 7c: Declared memory floor rule: max(p99 floor, frac * D) while gate is active
-            decl_mem = float(t.demand.get("mem_mb", 512.0))
             if is_declared_floor_active:
                 floor_val = max(floor_val, self.params.mem_declared_floor_frac * decl_mem)
 

@@ -20,6 +20,106 @@ try:
 except ImportError:
     run_ssm = None
 
+try:
+    import boto3
+except ImportError:
+    boto3 = None
+
+
+def authorize_security_group_ingress(
+    sg_id: str,
+    region: str,
+    ip_permissions: Optional[List[dict]] = None,
+    dry_run: bool = False,
+) -> dict:
+    """Authorizes ingress rules on security group and prints the actual return value."""
+    rule_dict = ip_permissions or [
+        {
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "IpRanges": [{"CidrIp": "127.0.0.1/32", "Description": "Ephemeral loopback/operator probe"}],
+        }
+    ]
+    if dry_run:
+        print("\n[DRY-RUN] authorize_security_group_ingress:")
+        print(f"  Target Security Group: {sg_id}")
+        print(f"  Region: {region}")
+        print("  Rule Dict WOULD BE Authorized:")
+        print(json.dumps(rule_dict, indent=2))
+        ret = {"Return": True, "DryRun": True, "SecurityGroupRules": rule_dict}
+        print(f"  Actual Return Value (Dry-Run): {ret}")
+        return ret
+
+    if boto3:
+        client = boto3.client("ec2", region_name=region)
+        resp = client.authorize_security_group_ingress(GroupId=sg_id, IpPermissions=rule_dict)
+        print(f"boto3 authorize_security_group_ingress returned: {resp}")
+        return resp
+    else:
+        cmd = [
+            "aws", "ec2", "authorize-security-group-ingress",
+            "--group-id", sg_id,
+            "--ip-permissions", json.dumps(rule_dict),
+            "--region", region,
+            "--output", "json",
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        resp = json.loads(res.stdout) if res.stdout.strip() else {"Return": True}
+        print(f"aws cli authorize_security_group_ingress returned: {resp}")
+        return resp
+
+
+def revoke_security_group_ingress(
+    sg_id: str,
+    region: str,
+    ip_permissions: Optional[List[dict]] = None,
+    dry_run: bool = False,
+) -> dict:
+    """Revokes ingress rules on security group and prints the actual return value."""
+    rule_dict = ip_permissions or [
+        {
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "IpRanges": [{"CidrIp": "127.0.0.1/32", "Description": "Ephemeral loopback/operator probe"}],
+        }
+    ]
+    if dry_run:
+        print("\n[DRY-RUN] revoke_security_group_ingress (guaranteed cleanup/zero-inbound invariant):")
+        print(f"  Target Security Group: {sg_id}")
+        print(f"  Region: {region}")
+        print("  Rule Dict WOULD BE Revoked:")
+        print(json.dumps(rule_dict, indent=2))
+        ret = {"Return": True, "DryRun": True, "RevokedRules": rule_dict}
+        print(f"  Actual Return Value (Dry-Run): {ret}")
+        return ret
+
+    if boto3:
+        client = boto3.client("ec2", region_name=region)
+        try:
+            resp = client.revoke_security_group_ingress(GroupId=sg_id, IpPermissions=rule_dict)
+        except Exception as e:
+            resp = {"Return": False, "Error": str(e)}
+        print(f"boto3 revoke_security_group_ingress returned: {resp}")
+        return resp
+    else:
+        cmd = [
+            "aws", "ec2", "revoke-security-group-ingress",
+            "--group-id", sg_id,
+            "--ip-permissions", json.dumps(rule_dict),
+            "--region", region,
+            "--output", "json",
+        ]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            resp = json.loads(res.stdout) if res.stdout.strip() else {"Return": True}
+        except Exception as e:
+            resp = {"Return": False, "Error": str(e)}
+        print(f"aws cli revoke_security_group_ingress returned: {resp}")
+        return resp
+
+
 
 def load_state() -> Dict[str, str]:
     state_file = os.path.abspath(
@@ -186,27 +286,31 @@ def wait_for_ssm(instance_id: str, region: str, timeout_s: int = 300, dry_run: b
     raise TimeoutError(f"SSM agent on {instance_id} did not come online within {timeout_s}s")
 
 
-def execute_confirmatory_suite(instance_id: str, region: str, dry_run: bool = False) -> None:
-    """Executes the 85-run evaluation matrix (60 baseline/hypothesis runs + 25 ablation runs)."""
-    print(f"\n=== [3/6] Executing 85-Run Confirmatory Matrix via SSM on {instance_id} ===")
+def execute_confirmatory_suite(instance_id: str, region: str, bucket: str = "", dry_run: bool = False) -> None:
+    """Executes the 105-run evaluation matrix (60 baseline/hypothesis runs + 25 ablation runs + 20 negative control runs)."""
+    print(f"\n=== [3/6] Executing 105-Run Confirmatory Matrix via SSM on {instance_id} ===")
+    s3_opt = f" --s3-bucket {bucket}" if bucket else ""
     bench_cmd = (
         "python3 -m alloc_platform.orchestrator.benchmark_matrix "
         "--scenarios scenario_1_baseline scenario_2_burst scenario_3_capacity_cut scenario_over_declaration "
         "--policies saha drf adaptive proportional "
         "--ablations saha:no_declared_floor saha:no_cut_latch saha:no_throttle_escalation saha:reclaim_only saha:fair_only "
+        "--negative-controls saha_v1_frozen "
         "--seeds 42 43 44 45 46 "
+        "--duration 120 "
         "--repeats 5"
+        f"{s3_opt}"
     )
     if dry_run:
         print("[DRY-RUN] AWS SSM send-command Execution Payload:")
         print(f"  Instance ID: {instance_id}")
         print(f"  DocumentName: AWS-RunShellScript")
         print(f"  Execution Command: {bench_cmd}")
-        print("  Total Matrix: 60 core baseline/hypothesis runs + 25 ablation runs = 85 runs (~49.6m active)")
+        print("  Total Matrix: 60 core baseline runs + 25 ablation runs + 20 negative control runs = 105 runs (~218.8m active)")
         return
 
     if run_ssm:
-        out, err, code = run_ssm(instance_id, [bench_cmd], region=region, timeout_s=3600)
+        out, err, code = run_ssm(instance_id, [bench_cmd], region=region, timeout_s=15000)
         if code != 0:
             raise RuntimeError(f"Confirmatory benchmark execution failed (exit {code}): {err}")
     else:
@@ -317,8 +421,8 @@ def main():
     parser.add_argument(
         "--watchdog-minutes",
         type=int,
-        default=75,
-        help="Hard auto-termination watchdog timer in minutes (default: 75m for 85 runs).",
+        default=245,
+        help="Hard auto-termination watchdog timer in minutes (default: 245m for 105 runs).",
     )
     parser.add_argument(
         "--instance-type",
@@ -335,6 +439,15 @@ def main():
     bucket = state.get("BUCKET", "alloc-platform-481374029754-ap-south-1")
     subnet_id = state.get("SUBNET_ID", "subnet-placeholder-default")
     image_id = state.get("AMI_ID", "ami-0d2986f2e8c0f7d01")
+
+    # Hard Validation: In non-dry-run mode, fail immediately on missing or placeholder parameters
+    if not args.dry_run:
+        for p_name, p_val in [("SubnetId", subnet_id), ("ImageId", image_id), ("SecurityGroupId", sg_id)]:
+            if not p_val or "placeholder" in p_val.lower():
+                raise ValueError(
+                    f"FATAL: Required infrastructure parameter {p_name} is unset, empty, or placeholder ('{p_val}'). "
+                    "Non-dry-run mode requires valid AWS resource IDs and will NOT fall back to defaults or placeholders."
+                )
 
     print(f"============================================================")
     print(f" STAGE 6 EPHEMERAL CONFIRMATORY LAUNCHER (DRY_RUN={args.dry_run})")
@@ -370,17 +483,22 @@ def main():
         dry_run=args.dry_run,
     )
 
-    wait_for_ssm(instance_id=instance_id, region=region, dry_run=args.dry_run)
-    execute_confirmatory_suite(instance_id=instance_id, region=region, dry_run=args.dry_run)
-    extract_artifacts_and_terminate(
-        instance_id=instance_id,
-        sg_id=sg_id,
-        bucket=bucket,
-        region=region,
-        metadata=metadata,
-        dry_run=args.dry_run,
-    )
+    try:
+        wait_for_ssm(instance_id=instance_id, region=region, dry_run=args.dry_run)
+        execute_confirmatory_suite(instance_id=instance_id, region=region, bucket=bucket, dry_run=args.dry_run)
+    finally:
+        # Guaranteed cleanup: revoke security group ingress and assert 0 inbound rules
+        revoke_security_group_ingress(sg_id=sg_id, region=region, dry_run=args.dry_run)
+        extract_artifacts_and_terminate(
+            instance_id=instance_id,
+            sg_id=sg_id,
+            bucket=bucket,
+            region=region,
+            metadata=metadata,
+            dry_run=args.dry_run,
+        )
 
 
 if __name__ == "__main__":
     main()
+

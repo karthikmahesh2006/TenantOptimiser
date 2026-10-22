@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowStage6ArtifactBucketListing",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::alloc-platform-481374029754-ap-south-1"
+    },
+    {
+      "Sid": "AllowStage6IncrementalArtifactUpload",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::alloc-platform-481374029754-ap-south-1/artifacts/*",
+        "arn:aws:s3:::alloc-platform-481374029754-ap-south-1/runs/*"
+      ]
+    }
+  ]
+}

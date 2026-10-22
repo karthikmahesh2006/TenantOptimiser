@@ -59,6 +59,13 @@ The orchestrator samples `memory.events` at every epoch ($1\text{ Hz}$) and coll
 | **H7** | Preserve Over-Declaration Win | Honest Tenant C `on_time_ratio` & Throughput | Static Proportional in Scenario Over-Decl | $\text{SAHA} \ge \text{Proportional} + 15.0\text{ pp}$, within $5\text{ pp}$ of Adaptive | 1-tailed paired $t$-test ($\alpha = 0.05$) | Tenant C on-time ratio $< \text{Proportional} + 5.0\text{ pp}$ |
 | **H8** | Rapid Host Capacity Contraction | CPU Convergence Epochs on Capacity Cut | Adaptive baseline in Scenario 3 ($\ge 3$ epochs) | Convergence in $\le 1$ epoch; zero capacity over-allocation | Wilcoxon signed-rank test ($\alpha = 0.05$) | Convergence $> 2$ epochs OR any epoch violating $\sum x_i \le C_{\text{cpu}}$ |
 
+> [!NOTE] **H5 Testing Reconciliation & Confirmatory Pass Criteria (Amendment 5)**:
+> In accordance with Amendment 5 and Part 2 Condition D, the confirmatory statistical test for H5 is locked to a one-tailed Mann-Whitney U test comparing SAHA against contemporaneous live Adaptive across confirmatory seeds `42`–`46`:
+> - **Full Pass**: $\text{On-Time}_{\text{SAHA}} \ge 85.0\%$ **AND** $p < 0.05$ vs contemporaneous live Adaptive.
+> - **Partial Pass**: $80.0\% \le \text{On-Time}_{\text{SAHA}} < 85.0\%$ **AND** $p < 0.05$ vs contemporaneous live Adaptive.
+> - **Failure**: $\text{On-Time}_{\text{SAHA}} < 80.0\%$ **OR** $p \ge 0.05$.
+> All effect-size thresholds (85/80% on-time, 0 OOM, +15/+5 pp, $\le 1$ / $> 2$ epochs) remain strictly frozen.
+
 ---
 
 ## 4. Pre-Declared Ablation Suite
@@ -164,8 +171,64 @@ In adherence to scientific integrity:
       4. `saha:reclaim_only`: 5 runs.
       5. `saha:fair_only`: 5 runs.
     - Subtotal: 25 ablation runs.
-  - **Total Session Runs**: $60 + 25 = 85$ live benchmark runs.
-  - **Wall-clock Runtime**: 85 runs × ~35s (30s scenario duration + 5s container create/teardown overhead) = 2,975s (~49.6 minutes) active execution.
-  - **Instance Watchdog & Buffer Margin**: 75 minutes hard watchdog (5m boot/SSM + 50m workload execution + 20m artifact export and verification buffer).
-  - **Financial Budget**: 75 minutes on EC2 `c7i-flex.large` ($0.088/hr) = $\$0.110$ (well within research budget cap).
+  - **Negative Control Arm (`saha_v1_frozen`, Section 7 Amendment 5)**:
+    - Executed across seeds `42`–`46` ($n=5$ each) on Scenarios 1, 2, 3, and Over-Declaration: 20 runs.
+  - **Total Session Runs (Option C Protocol)**: $60 + 25 + 20 = \mathbf{105\text{ live benchmark runs}}$.
+  - **Wall-clock Runtime (Option b 120s Scenarios)**: 105 runs × ~125s (120s duration + 5s overhead) = $13,125\text{ s}$ ($\sim 218.8\text{ minutes}$ / $3.65\text{ hours}$) active execution.
+  - **Instance Watchdog & Buffer Margin**: 245 minutes hard watchdog (5m boot/SSM + 219m workload execution + 21m artifact export and verification buffer).
+  - **Financial Budget**: 245 minutes ($4.08\text{ hours}$) on EC2 `c7i-flex.large` ($0.088/\text{hr}$) = $\mathbf{\$0.359}$ (strictly $\le \$1.00$ cap).
+
+### Amendment 5: Cold-Start Allocator Bug Resolution, 2x2 Attribution Matrix, Scenario Extension (Option b), and Negative Control Arm (Option C Protocol)
+
+#### 1. Root-Cause Analysis: Cold-Start Memory Floor Over-Allocation Bug
+During initial simulation on oversubscribed scenarios (Scenario 1 Baseline: Pool 1.5c / 3072 MB, declared demand 3584 MB), SAHA exhibited 17.07% on-time ratio while baselines achieved 86–100%. Diagnostic inspection revealed:
+- In `src/alloc_platform/allocator/saha.py:346-356`, during cold start ($t < 60\text{ s}$ or $< 10$ samples), `prev_mem` fell back to declared demand `t.demand["mem_mb"]` whenever `prev_alloc` was `None` (epoch 0).
+- When declared demand exceeded pool memory capacity ($\sum D_{\text{mem}} > C_{\text{mem}}$), ADR-011 §2.2 specifies that the declared-floor gate turns OFF and floors safely revert to empirical p99 RSS with bootstrap fallback ($1.15 \times \text{curr\_rss} + \text{margin}$).
+- However, initializing `prev_mem = demand` forced `floor_val = max(calc_floor, prev_mem) = demand`, creating an artificial oversubscription where $\sum \text{floor} = 3584\text{ MB} > 3072\text{ MB}$.
+- This erroneously triggered Condition 4 priority shedding at epoch 0, rejecting up to 1,922 requests per run.
+
+#### 2. Attribution: 2x2 Factorial Matrix
+To rigorously isolate whether the 17.07% on-time metric was an allocator defect, a simulator artifact, or both, a 2x2 factorial matrix was executed locally on `scenario_1_baseline` across diagnosis seeds `101`, `102`, `103`:
+
+| Test Cell | Allocator Policy | Synthetic RSS Frac | Mean On-Time Ratio | Mean Rejected Samples | Mean Unmet Guarantees | Mean Throttled-Spare Ratio |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Cell 1** | Unpatched SAHA (`saha_v1_frozen`) | $0.80 \times D$ | **17.07%** | 1,968.0 | 0.0 | 10.00% |
+| **Cell 2** | Unpatched SAHA (`saha_v1_frozen`) | $0.25 \times D$ | **17.07%** | 1,968.0 | 0.0 | 3.33% |
+| **Cell 3** | Patched SAHA (`saha`) | $0.80 \times D$ | **17.07%** | 1,968.0 | 0.0 | 10.00% |
+| **Cell 4** | Patched SAHA (`saha`) | $0.25 \times D$ | **100.00%** | **0.0** | **0.0** | **3.33%** |
+
+- **Attribution Finding**:
+  - The failure on realistic load is 100% an **allocator bug**: Cell 2 demonstrates that unpatched SAHA fails with 17.07% on-time even under realistic physical RSS ($0.25 \times D$) due to the epoch-0 cold-start floor bug.
+  - The simulator's legacy $0.80 \times D$ synthetic model was an **artifact** that masked the fix: under $0.80 \times D$, empirical p99 floor ($1.15 \times 0.80 \times D + 0.10 \times 0.80 \times D = 1.00 \times D$) equals $100\%$ of declared demand, creating an artificial infeasibility. Under realistic hardware RSS ($0.25 \times D$), patched SAHA achieves **100.00% on-time** and **0 rejections**.
+
+#### 3. Code Fix & Pinned Pre-Fix Snapshot
+- **Fix (Commit `4d6cdb6`)**: In `saha.py:346-350`, when `prev_alloc is None` and declared-floor gate is inactive (`is_declared_floor_active is False`), `prev_mem` initializes to `calc_floor` ($1.15 \times \text{curr\_rss} + \text{margin}$) per ADR-011 §2.2, NOT declared demand.
+- **Pinned Snapshot**: The pre-fix allocator code was snapshotted as `saha_v1_frozen` in `src/alloc_platform/allocator/saha_v1_frozen.py` (commit `b09cd20` state) and registered in `runner.py` dispatch.
+
+#### 4. Confirmatory Seed Isolation
+- Diagnosis, parameter verification, and matrix benchmarking strictly utilized **seeds `101`, `102`, `103` ONLY**.
+- Confirmatory seeds `42`, `43`, `44`, `45`, `46` were strictly held out and have **NEVER** been simulated locally for SAHA.
+
+#### 5. Phase 3 Scenario Duration & Costing Decision (Option b Selected)
+- **Problem**: In 30s benchmark scenarios, the 60s cold-start sliding window ($W=60\text{ s}$, `mem_min_samples=10`) spans 100% of the run duration, preventing post-cold-start steady-state evaluation.
+- **Decision Rule Application**: Option (a) kept 30s scenarios and shortened $W$ to 10s. Option (b) retained physical $W=60\text{ s}$ and extended scenario durations to 120s ($50\%$ steady-state operation). Per the governing decision rule, because the estimated AWS EC2 cost of Option (b) is $\le \$1.00$ ($4.08\text{ hr} \times \$0.088/\text{hr} = \$0.359$), **Option (b) is strictly selected**.
+- **Contemporaneous Baseline Invariance**: Since all baselines (Adaptive, DRF, Proportional) are executed contemporaneously within the exact same ephemeral EC2 run, extending scenario duration introduces zero baseline drift or comparability bias.
+
+#### 6. Confirmatory Protocol & Option C Matrix (105 Runs)
+To conclusively evaluate the allocator fix in live hardware evaluation, Option C matrix protocol is adopted, adding a pinned `saha_v1_frozen` negative control arm:
+- **Core Baseline & Hypothesis Runs (120s, seeds 42–46)**:
+  - Scenario 1 (Baseline): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
+  - Scenario 2 (Burst): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
+  - Scenario 3 (Capacity Cut): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
+  - Scenario Over-Declaration: SAHA (5), Adaptive (5), Proportional (5) = 15 runs.
+  - Subtotal: 60 runs.
+- **Pre-Declared Ablation Runs (120s, seeds 42–46 on Scenario 1)**:
+  - 5 ablations (`no_declared_floor`, `no_cut_latch`, `no_throttle_escalation`, `reclaim_only`, `fair_only`) × 5 seeds = 25 runs.
+- **Negative Control Arm (120s, seeds 42–46)**:
+  - `saha_v1_frozen` across Scenario 1 (5), Scenario 2 (5), Scenario 3 (5), Over-Declaration (5) = 20 runs.
+- **Total Session Runs**: $60 + 25 + 20 = \mathbf{105\text{ runs}}$.
+- **Active Execution Runtime**: 105 runs × (120s duration + 5s overhead) = $13,125\text{ s} = 218.75\text{ minutes}$ (~3.65 hours).
+- **Instance Watchdog & Buffer**: 245 minutes hard watchdog (covering 218.8m execution + 26.2m bootstrap/export buffer).
+- **Financial Budget**: 245 minutes (4.08 hours) on `c7i-flex.large` ($0.088/hr) = $\mathbf{\$0.359} \le \$1.00$.
+
 

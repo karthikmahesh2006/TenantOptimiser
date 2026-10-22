@@ -455,7 +455,7 @@ async def _execute_single_run(
                     delta_throttled = throttle_ratio * 100000.0
                     delta_usec = used_cpu * dt * 1_000_000.0
                     nr_throttled = 1 if throttle_ratio > 0 else 0
-                    used_mem = round(float(t.demand.get("mem_mb", 256.0)) * 0.8, 2)
+                    used_mem = round(float(t.demand.get("mem_mb", 256.0)) * config.synthetic_mem_demand_frac, 2)
                     cgroup_usec_sum[t.id] = cgroup_usec_sum.get(t.id, 0.0) + delta_usec
                     cgroup_throttled_sum[t.id] = cgroup_throttled_sum.get(t.id, 0.0) + delta_throttled
 

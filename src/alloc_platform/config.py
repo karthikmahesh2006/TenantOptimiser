@@ -99,9 +99,10 @@ class PlatformConfig(BaseModel):
     session_cookie_name: str = "alloc_session"
     session_max_age_s: int = 86400 * 7  # 7 days
 
-    # Timing
+    # Timing & Workload Simulation
     epoch_interval_s: float = 1.0
     sampler_interval_s: float = 1.0
+    synthetic_mem_demand_frac: float = 0.80
 
 
 # Default singleton instance

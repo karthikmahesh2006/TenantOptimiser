@@ -114,11 +114,11 @@ In adherence to scientific integrity:
 
 ### Amendment 2: Hard Auto-Termination Watchdog & Budget Cap
 - The ephemeral EC2 instance will be launched with AWS parameter `InstanceInitiatedShutdownBehavior='terminate'`.
-- A 50-minute hard shutdown watchdog will be initiated in instance user-data (35m workload execution across 60 runs + 15m setup/buffer margin):
+- A 75-minute hard shutdown watchdog will be initiated in instance user-data (50m workload execution across 85 runs + 25m setup/buffer margin):
   ```bash
-  sudo shutdown -h +50 "Stage 6 evaluation budget cap reached"
+  sudo shutdown -h +75 "Stage 6 evaluation budget cap reached"
   ```
-  When the watchdog fires, the OS shutdown triggers immediate instance and root EBS volume termination, strictly capping total spend to $\le 50\text{ minutes}$ ($< \$0.08$).
+  When the watchdog fires, the OS shutdown triggers immediate instance and root EBS volume termination, strictly capping total spend to $\le 75\text{ minutes}$ ($< \$0.11$).
 
 ### Amendment 3: Termination Security Group Verification & Artifact Capture
 - At instance termination, the launch automation will query AWS EC2 for all inbound permissions on the security group:
@@ -127,21 +127,45 @@ In adherence to scientific integrity:
   ```
   The exact inbound rule count ($0$) will be asserted and committed into the final `data/stage6_live_metadata.json` artifact prior to instance termination.
 
-### Amendment 4: Fully Contemporaneous Live Baselines, Paired Replication Protocol, and Statistical Test Specification
+### Amendment 4: Fully Contemporaneous Live Baselines, Paired Replication Protocol, Ablation Budget, and Reconciled Statistical Testing
 - **Scope & Protocol**: To eliminate inter-session confounding across all hypotheses (H5–H8), all baseline allocators (Adaptive, DRF, Proportional) will be re-executed live contemporaneously alongside SAHA within the exact same ephemeral EC2 session on the identical seeds (`42`, `43`, `44`, `45`, `46`).
 - **Seed Reuse & Paired Replication Disclosure**: Seeds `42`–`46` are identical to the baseline seeds used in the frozen v1.0 benchmark evaluations. Evaluating SAHA on seeds `42`–`46` constitutes a strict, controlled paired replication on known benchmark workloads, NOT an out-of-distribution independent confirmation.
-- **Run Count, Timing & Budget Validation**:
-  - Scenario 1 (Baseline, 30s): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
-  - Scenario 2 (Burst, 30s): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
-  - Scenario 3 (Capacity Cut, 30s): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
-  - Scenario Over-Declaration (30s): SAHA (5), Adaptive (5), Proportional (5) = 15 runs.
-  - Total Runs: 60 live benchmark runs.
-  - Wall-clock runtime: 60 runs × ~35s (30s duration + 5s teardown) = 2,100s (35 minutes).
-  - Ephemeral instance budget: 50 minutes (5m setup + 35m workload + 10m artifact extraction buffer).
-  - Financial cost: 50m on `c7i-flex.large` ($0.088/hr) = $0.073 (fits well within budget).
-- **Formal Statistical Test Specification (Two-Sample Testing)**:
-  - **H5 (Mitigate Saturation Collapse)**: One-tailed two-sample Mann-Whitney U test ($\alpha = 0.05$, $n_1=5, n_2=5$) testing $H_0: \text{On-Time}_{\text{SAHA}} \le \text{On-Time}_{\text{Adaptive}}$ vs. $H_1: \text{On-Time}_{\text{SAHA}} > \text{On-Time}_{\text{Adaptive}}$ on Scenarios 1 & 2. The $\ge 70.0\%$ on-time ratio is a fixed descriptive threshold criterion, not a two-sample comparator.
-  - **H6 (Zero Honest OOM Kills)**: Fisher's Exact Test ($\alpha = 0.05$) comparing SAHA honest OOM count vs Contemporaneous live DRF honest OOM count ($n_1=5, n_2=5$) on Scenario 3.
-  - **H7 (Preserve Over-Declaration Win)**: One-tailed two-sample Mann-Whitney U test ($\alpha = 0.05$, $n_1=5, n_2=5$) testing $H_0: \text{Throughput}_{\text{SAHA}} \le \text{Throughput}_{\text{Proportional}}$ vs. $H_1: \text{Throughput}_{\text{SAHA}} > \text{Throughput}_{\text{Proportional}}$ on `scenario_over_declaration`. Secondarily, non-inferiority check vs Contemporaneous Adaptive on-time ratio.
-  - **H8 (Rapid Host Capacity Contraction)**: Wilcoxon signed-rank test ($\alpha = 0.05$, $n=5$) comparing CPU contraction convergence epochs under capacity cut for SAHA vs Contemporaneous Adaptive on Scenario 3 ($H_0: \text{Epochs}_{\text{SAHA}} \ge \text{Epochs}_{\text{Adaptive}}$).
+- **Audit of Changed Tests and Metrics (Correction of Prior "Zero Test Wording Changed" Statement)**:
+  The prior statement that "zero test wording changed" was incorrect and is withdrawn. Relative to the frozen Section 3 table, Amendment 4 makes the following specific adjustments:
+  1. **H5 Comparison**: Compares SAHA against contemporaneous live Adaptive runs on seeds 42–46 (rather than frozen historical 7.1%). The statistical test is specified as a one-tailed two-sample Mann-Whitney U test (or Welch's t-test).
+  2. **H6 Comparison**: Replaces the unverified historical "4/5 DRF OOMs" narrative with contemporaneous live DRF runs on Scenario 3. Primary criterion is made absolute; Fisher's exact test is secondary.
+  3. **H7 Comparison**: Replaces static comparison with contemporaneous live Proportional and Adaptive runs. Primary metric remains Tenant C on-time ratio; throughput is added as supplementary.
+  4. **H8 Comparison**: Evaluates contraction convergence against contemporaneous live Adaptive on Scenario 3.
+- **Reversion of Pass Criteria (Part 2 Condition D Compliance)**:
+  - **H5**: The threshold criterion is **MANDATORY**, not a "descriptive target". H5 passes if and only if **BOTH** the effect-size threshold ($\text{On-Time}_{\text{SAHA}} \ge 80.0\%$) **AND** the statistical significance test ($p < 0.05$ vs contemporaneous Adaptive) hold.
+  - **H7**: Primary metric remains strictly **Honest Tenant C on-time ratio** ($\ge \text{Proportional} + 15.0\text{ pp}$; failure defined as $< \text{Proportional} + 5.0\text{ pp}$). Overall throughput is classified strictly as a **Supplementary/Secondary Metric**.
+- **H6 Absolute Criterion & Fisher's Exact Power Disclosure (Part 2 Condition E Compliance)**:
+  - **Primary Criterion (Absolute)**: SAHA must experience exactly $0$ honest-load OOM kills across all $n=5$ runs ($0.0\%$ rate). Any honest OOM kill is an immediate failure of H6.
+  - **Secondary Criterion (Comparative)**: Fisher's Exact Test ($\alpha = 0.05$, one-tailed) comparing SAHA vs contemporaneous live DRF in Scenario 3.
+  - **Power Disclosure**: With $n=5$ repeats per policy, Fisher's Exact Test achieves $p < 0.05$ if and only if contemporaneous live DRF experiences $\ge 4/5$ OOM kills ($0/5$ vs $4/5 \implies p = 0.0238$; $0/5$ vs $3/5 \implies p = 0.0833 > 0.05$). If live DRF experiences $\le 3$ OOM kills, the comparative test cannot reject $H_0$ at $\alpha = 0.05$.
+- **Test Structure, Multiplicity, and Minimum Attainable p-Values (Part 2 Condition F Compliance)**:
+  - **H5 Testing Structure**: Scenario 1 and Scenario 2 are evaluated both individually ($n=5$ each) and pooled ($N=10$ per policy). For individual testing, Bonferroni correction applies for the 2 scenario tests: $\alpha_{\text{adj}} = 0.05 / 2 = 0.025$. For pooled testing, $\alpha = 0.05$.
+  - **Minimum Attainable p-Values at $n=5$**:
+    - Mann-Whitney U test (one-tailed, $n_1=5, n_2=5$): $p_{\min} = \frac{1}{\binom{10}{5}} = \frac{1}{252} \approx 0.003968$ ($< \alpha_{\text{adj}} = 0.025$). (Pooled $n_1=10, n_2=10$: $p_{\min} \approx 0.000091$).
+    - Wilcoxon signed-rank test (one-tailed, $n=5$ pairs): $p_{\min} = \left(\frac{1}{2}\right)^5 = 0.03125$. (Requires all 5 pairs to strictly favor SAHA to reach $p < 0.05$).
+    - Fisher's Exact Test (one-tailed, $0/5$ vs $k/5$): $k=3 \implies p=0.0833$, $k=4 \implies p=0.0238$, $k=5 \implies p=0.003968$.
+- **Run Count, Ablation Budget & Timing Validation (Part 2 Condition G Compliance)**:
+  - **Core Baseline & Hypothesis Runs**:
+    - Scenario 1 (Baseline, 30s): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
+    - Scenario 2 (Burst, 30s): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
+    - Scenario 3 (Capacity Cut, 30s): SAHA (5), Adaptive (5), DRF (5) = 15 runs.
+    - Scenario Over-Declaration (30s): SAHA (5), Adaptive (5), Proportional (5) = 15 runs.
+    - Subtotal: 60 runs.
+  - **Pre-Declared Ablation Runs (Section 4)**:
+    - Executed on `scenario_1_baseline` across seeds `42`–`46` ($n=5$ each):
+      1. `saha:no_declared_floor`: 5 runs.
+      2. `saha:no_cut_latch`: 5 runs.
+      3. `saha:no_throttle_escalation`: 5 runs.
+      4. `saha:reclaim_only`: 5 runs.
+      5. `saha:fair_only`: 5 runs.
+    - Subtotal: 25 ablation runs.
+  - **Total Session Runs**: $60 + 25 = 85$ live benchmark runs.
+  - **Wall-clock Runtime**: 85 runs × ~35s (30s scenario duration + 5s container create/teardown overhead) = 2,975s (~49.6 minutes) active execution.
+  - **Instance Watchdog & Buffer Margin**: 75 minutes hard watchdog (5m boot/SSM + 50m workload execution + 20m artifact export and verification buffer).
+  - **Financial Budget**: 75 minutes on EC2 `c7i-flex.large` ($0.088/hr) = $\$0.110$ (well within research budget cap).
 

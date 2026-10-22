@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -9,6 +10,8 @@ from typing import Dict, List, Optional
 
 import numpy as np
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from alloc_platform.allocator.adaptive import AdaptiveAllocator, AdaptiveParams
 from alloc_platform.allocator.drf import allocate_drf
@@ -195,6 +198,19 @@ async def execute_experiment_async(experiment_id: str) -> None:
         db.close()
 
 
+def apply_live_path_shedding(
+    req_samples: List[RequestSample], plans_history: List[Plan]
+) -> List[RequestSample]:
+    """In live cgroup path, mark requests as rejected for tenants whose memory floor was shed."""
+    if req_samples and plans_history:
+        for s in req_samples:
+            epoch_idx = min(len(plans_history) - 1, max(0, int(s.scheduled_time_s)))
+            plan_at_t = plans_history[epoch_idx]
+            if any(ug[0] == s.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees):
+                s.status = "rejected"
+    return req_samples
+
+
 async def _execute_single_run(
     db: Session,
     run_id: str,
@@ -234,10 +250,20 @@ async def _execute_single_run(
     if "no_surplus" in pol:
         adaptive_params.use_surplus = False
     adaptive_inst = AdaptiveAllocator(params=adaptive_params)
-    saha_params = SahaParams()
+    saha_params = SahaParams.from_config()
     if "no_declared_floor" in pol:
         saha_params.use_declared_floor = False
         saha_params.mem_declared_floor_frac = 0.0
+    logger.info(
+        "SAHA initialized for run %s with effective params: ewma_alpha=%.2f, headroom_h=%.2f, throttle_step=%.2f, rho_low=%.2f, rho_high=%.2f, deadband=%.2f",
+        run_id,
+        saha_params.ewma_alpha,
+        saha_params.headroom_h,
+        saha_params.throttle_step,
+        saha_params.rho_low,
+        saha_params.rho_high,
+        saha_params.deadband,
+    )
     saha_inst = SahaAllocator(params=saha_params)
 
     plans_history: List[Plan] = []
@@ -584,12 +610,7 @@ async def _execute_single_run(
                 req_samples = []
 
         # In live cgroup path, mark requests as rejected for tenants whose memory floor was shed
-        if req_samples and plans_history:
-            for s in req_samples:
-                epoch_idx = min(len(plans_history) - 1, max(0, int(s.scheduled_time_s)))
-                plan_at_t = plans_history[epoch_idx]
-                if any(ug[0] == s.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees):
-                    s.status = "rejected"
+        req_samples = apply_live_path_shedding(req_samples, plans_history)
 
 
         # If no live samples returned (e.g. simulation or endpoints unreachable), simulate requests deterministically

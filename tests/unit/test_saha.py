@@ -32,6 +32,7 @@ from alloc_platform.allocator.proportional import allocate_proportional
 from alloc_platform.allocator.saha import SahaAllocator, SahaParams, allocate_saha
 from alloc_platform.allocator.types import Plan, Pool, Tenant, TenantObs
 from alloc_platform.config import config
+from alloc_platform.orchestrator.runner import apply_live_path_shedding, _execute_single_run
 from alloc_platform.workload.loadgen import RequestSample
 from alloc_platform.workload.traces import Arrival
 
@@ -625,12 +626,8 @@ def test_live_cgroup_path_shedding_with_fake_enforcer():
         ),
     ]
 
-    # Execute the exact live path shedding transformation from runner.py lines 582-588
-    for s in live_samples:
-        epoch_idx = min(len(plans_history) - 1, max(0, int(s.scheduled_time_s)))
-        plan_at_t = plans_history[epoch_idx]
-        if any(ug[0] == s.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees):
-            s.status = "rejected"
+    # Execute the live path shedding transformation from runner.py
+    live_samples = apply_live_path_shedding(live_samples, plans_history)
 
     # Verify only tenant_b was rejected, tenant_a remained "ok"
     assert live_samples[0].tenant_id == "tenant_a"
@@ -894,7 +891,7 @@ def test_runner_non_saha_live_enforcer_regression():
         for r in pool.capacity:
             assert plan_baseline.alloc[tid][r] == pytest.approx(golden_alloc[tid][r], abs=1e-5)
 
-    # 2. Simulate live enforcer request processing in runner.py (lines 582-588)
+    # 2. Call the real runner code path: apply_live_path_shedding
     plans_history = [plan_baseline]
     live_samples = [
         RequestSample(
@@ -911,19 +908,49 @@ def test_runner_non_saha_live_enforcer_regression():
         )
         for tid in plan_baseline.alloc
     ]
-
-    # Execute the live path transformation in runner.py lines 582-588
-    for s in live_samples:
-        epoch_idx = min(len(plans_history) - 1, max(0, int(s.scheduled_time_s)))
-        plan_at_t = plans_history[epoch_idx]
-        if any(ug[0] == s.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees):
-            s.status = "rejected"
+    processed_samples = apply_live_path_shedding(live_samples, plans_history)
 
     # For non-SAHA allocators (Adaptive, Proportional, DRF), plan.unmet_guarantees is empty
     # Verify zero samples were modified to "rejected"
     assert len(plan_baseline.unmet_guarantees) == 0, "Non-SAHA allocators produce empty unmet_guarantees"
-    for s in live_samples:
+    for s in processed_samples:
         assert s.status == "ok", f"Sample for tenant {s.tenant_id} must remain 'ok' in live path"
+
+    # 3. Call the full _execute_single_run code path with a non-SAHA policy (Adaptive)
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from alloc_platform.db.models import Base, Experiment, PoolModel, Run, RequestSampleModel
+    from alloc_platform.orchestrator.scenario import get_predefined_scenarios
+    from alloc_platform.telemetry.host import HostMonitor
+    import asyncio
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine)()
+    db.add(PoolModel(id="default_pool", name="Default Pool", cpu_cores=2.0, mem_mb=2048.0))
+    db.add(Experiment(id="exp_reg_test", name="Reg Test", scenario_id="scenario_1_baseline", status="running", policies_json='["adaptive"]', repeats=1))
+    db.add(Run(id="run_reg_test", experiment_id="exp_reg_test", policy="adaptive", repeat_index=0, status="pending", is_valid=True))
+    db.commit()
+
+    scen = get_predefined_scenarios()["scenario_1_baseline"]
+    scen.duration_s = 5
+    config.epoch_interval_s = 0.0
+
+    asyncio.run(_execute_single_run(
+        db=db,
+        run_id="run_reg_test",
+        policy="adaptive",
+        scen_spec=scen,
+        enforcer=None,
+        host_mon=HostMonitor(),
+        cancel_event=asyncio.Event(),
+    ))
+
+    # Verify that in the runner code path for Adaptive, ZERO samples receive 'rejected' status
+    req_samples_db = db.query(RequestSampleModel).filter(RequestSampleModel.run_id == "run_reg_test").all()
+    rejected_count = sum(1 for s in req_samples_db if s.status == "rejected")
+    assert rejected_count == 0, "Non-SAHA allocator runner execution must produce zero rejected samples"
+    db.close()
 
 
 

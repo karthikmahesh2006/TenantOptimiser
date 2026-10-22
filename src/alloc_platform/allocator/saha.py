@@ -6,7 +6,7 @@ while preserving quota reclamation wins under over-declaration.
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -44,28 +44,56 @@ class SahaParams:
     """
 
     # Tunables
-    ewma_alpha: float = config.saha_ewma_alpha
-    headroom_h: float = config.saha_headroom_h
-    throttle_step: float = config.saha_throttle_step
-    rho_low: float = config.saha_rho_low
-    rho_high: float = config.saha_rho_high
-    mem_floor_mult: float = config.saha_mem_floor_mult
-    mem_margin_mb: float = config.saha_mem_margin_mb
-    mem_margin_frac: float = config.saha_mem_margin_frac
-    mem_window_s: float = config.saha_mem_window_s
-    mem_contract_step: float = config.saha_mem_contract_step
-    cpu_contract_rate: float = config.saha_cpu_contract_rate
-    deadband: float = config.saha_deadband
+    ewma_alpha: float = field(default_factory=lambda: config.saha_ewma_alpha)
+    headroom_h: float = field(default_factory=lambda: config.saha_headroom_h)
+    throttle_step: float = field(default_factory=lambda: config.saha_throttle_step)
+    rho_low: float = field(default_factory=lambda: config.saha_rho_low)
+    rho_high: float = field(default_factory=lambda: config.saha_rho_high)
+    mem_floor_mult: float = field(default_factory=lambda: config.saha_mem_floor_mult)
+    mem_margin_mb: float = field(default_factory=lambda: config.saha_mem_margin_mb)
+    mem_margin_frac: float = field(default_factory=lambda: config.saha_mem_margin_frac)
+    mem_window_s: float = field(default_factory=lambda: config.saha_mem_window_s)
+    mem_contract_step: float = field(default_factory=lambda: config.saha_mem_contract_step)
+    cpu_contract_rate: float = field(default_factory=lambda: config.saha_cpu_contract_rate)
+    deadband: float = field(default_factory=lambda: config.saha_deadband)
 
     # Structural parameters
-    reclaim_min_share_ratio: float = config.saha_reclaim_min_share_ratio
-    mem_min_samples: int = config.saha_mem_min_samples
-    cut_latch_epochs: int = config.saha_cut_latch_epochs
-    dhat_min_epsilon: float = config.saha_dhat_min_epsilon
-    cap_cut_tol: float = config.saha_cap_cut_tol
-    mem_declared_floor_frac: float = config.saha_mem_declared_floor_frac
-    deadband_eps: float = config.saha_deadband_eps
+    reclaim_min_share_ratio: float = field(default_factory=lambda: config.saha_reclaim_min_share_ratio)
+    mem_min_samples: int = field(default_factory=lambda: config.saha_mem_min_samples)
+    cut_latch_epochs: int = field(default_factory=lambda: config.saha_cut_latch_epochs)
+    dhat_min_epsilon: float = field(default_factory=lambda: config.saha_dhat_min_epsilon)
+    cap_cut_tol: float = field(default_factory=lambda: config.saha_cap_cut_tol)
+    mem_declared_floor_frac: float = field(default_factory=lambda: config.saha_mem_declared_floor_frac)
+    deadband_eps: float = field(default_factory=lambda: config.saha_deadband_eps)
     use_declared_floor: bool = True
+
+    @classmethod
+    def from_config(cls, **overrides) -> "SahaParams":
+        """Instantiate SahaParams dynamically reading current values from config."""
+        fields = {
+            "ewma_alpha": config.saha_ewma_alpha,
+            "headroom_h": config.saha_headroom_h,
+            "throttle_step": config.saha_throttle_step,
+            "rho_low": config.saha_rho_low,
+            "rho_high": config.saha_rho_high,
+            "mem_floor_mult": config.saha_mem_floor_mult,
+            "mem_margin_mb": config.saha_mem_margin_mb,
+            "mem_margin_frac": config.saha_mem_margin_frac,
+            "mem_window_s": config.saha_mem_window_s,
+            "mem_contract_step": config.saha_mem_contract_step,
+            "cpu_contract_rate": config.saha_cpu_contract_rate,
+            "deadband": config.saha_deadband,
+            "reclaim_min_share_ratio": config.saha_reclaim_min_share_ratio,
+            "mem_min_samples": config.saha_mem_min_samples,
+            "cut_latch_epochs": config.saha_cut_latch_epochs,
+            "dhat_min_epsilon": config.saha_dhat_min_epsilon,
+            "cap_cut_tol": config.saha_cap_cut_tol,
+            "mem_declared_floor_frac": config.saha_mem_declared_floor_frac,
+            "deadband_eps": config.saha_deadband_eps,
+        }
+        fields.update(overrides)
+        return cls(**fields)
+
 
 
 

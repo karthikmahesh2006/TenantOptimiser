@@ -1,0 +1,837 @@
+[
+  {
+    "candidate": {
+      "name": "C1_Baseline_Default",
+      "ewma_alpha": 0.3,
+      "headroom_h": 0.2,
+      "throttle_step": 1.25,
+      "rho_low": 0.85,
+      "rho_high": 1.0
+    },
+    "h5_metrics": {
+      "mean_on_time_ratio": 0.17065676928377158,
+      "mean_throughput": 13.5,
+      "mean_p95_latency_ms": 65.0,
+      "mean_throttled_while_spare_ratio": 0.09999999999999999
+    },
+    "h7_metrics": {
+      "mean_on_time_ratio": 1.0,
+      "mean_throughput": 76.6,
+      "mean_p95_latency_ms": 102.306
+    },
+    "runs": [
+      {
+        "seed": 101,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 75.6,
+        "p95_latency_ms": 102.43,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 76.3,
+        "p95_latency_ms": 102.148,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 77.9,
+        "p95_latency_ms": 102.34,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "candidate": {
+      "name": "C2_Conservative",
+      "ewma_alpha": 0.15,
+      "headroom_h": 0.1,
+      "throttle_step": 1.15,
+      "rho_low": 0.8,
+      "rho_high": 0.95
+    },
+    "h5_metrics": {
+      "mean_on_time_ratio": 0.17065676928377158,
+      "mean_throughput": 13.5,
+      "mean_p95_latency_ms": 75.47833333333331,
+      "mean_throttled_while_spare_ratio": 0.16666666666666666
+    },
+    "h7_metrics": {
+      "mean_on_time_ratio": 1.0,
+      "mean_throughput": 76.6,
+      "mean_p95_latency_ms": 103.03000000000002
+    },
+    "runs": [
+      {
+        "seed": 101,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 67.08099999999997,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.16666666666666666,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 67.08099999999997,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.16666666666666666,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 75.6,
+        "p95_latency_ms": 103.25,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 79.02599999999998,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.16666666666666666,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 79.02599999999998,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.16666666666666666,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 76.3,
+        "p95_latency_ms": 102.92,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 80.32799999999999,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.16666666666666666,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 80.32799999999999,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.16666666666666666,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 77.9,
+        "p95_latency_ms": 102.92,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.15,
+          "headroom_h": 0.1,
+          "throttle_step": 1.15,
+          "rho_low": 0.8,
+          "rho_high": 0.95
+        }
+      }
+    ]
+  },
+  {
+    "candidate": {
+      "name": "C3_Responsive",
+      "ewma_alpha": 0.5,
+      "headroom_h": 0.3,
+      "throttle_step": 1.35,
+      "rho_low": 0.85,
+      "rho_high": 1.0
+    },
+    "h5_metrics": {
+      "mean_on_time_ratio": 0.17065676928377158,
+      "mean_throughput": 13.5,
+      "mean_p95_latency_ms": 65.0,
+      "mean_throttled_while_spare_ratio": 0.06666666666666667
+    },
+    "h7_metrics": {
+      "mean_on_time_ratio": 1.0,
+      "mean_throughput": 76.6,
+      "mean_p95_latency_ms": 98.34666666666668
+    },
+    "runs": [
+      {
+        "seed": 101,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.06666666666666667,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.06666666666666667,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 75.6,
+        "p95_latency_ms": 98.45,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.06666666666666667,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.06666666666666667,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 76.3,
+        "p95_latency_ms": 98.22,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.06666666666666667,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.06666666666666667,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 77.9,
+        "p95_latency_ms": 98.37,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.5,
+          "headroom_h": 0.3,
+          "throttle_step": 1.35,
+          "rho_low": 0.85,
+          "rho_high": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "candidate": {
+      "name": "C4_Wide_Hysteresis",
+      "ewma_alpha": 0.3,
+      "headroom_h": 0.2,
+      "throttle_step": 1.25,
+      "rho_low": 0.8,
+      "rho_high": 1.05
+    },
+    "h5_metrics": {
+      "mean_on_time_ratio": 0.17065676928377158,
+      "mean_throughput": 13.5,
+      "mean_p95_latency_ms": 65.0,
+      "mean_throttled_while_spare_ratio": 0.09999999999999999
+    },
+    "h7_metrics": {
+      "mean_on_time_ratio": 1.0,
+      "mean_throughput": 76.6,
+      "mean_p95_latency_ms": 99.69866666666667
+    },
+    "runs": [
+      {
+        "seed": 101,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 75.6,
+        "p95_latency_ms": 99.88,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 76.3,
+        "p95_latency_ms": 99.56,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 77.9,
+        "p95_latency_ms": 99.65599999999999,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.8,
+          "rho_high": 1.05
+        }
+      }
+    ]
+  },
+  {
+    "candidate": {
+      "name": "C5_Narrow_Hysteresis",
+      "ewma_alpha": 0.3,
+      "headroom_h": 0.2,
+      "throttle_step": 1.25,
+      "rho_low": 0.9,
+      "rho_high": 1.0
+    },
+    "h5_metrics": {
+      "mean_on_time_ratio": 0.17065676928377158,
+      "mean_throughput": 13.5,
+      "mean_p95_latency_ms": 65.0,
+      "mean_throttled_while_spare_ratio": 0.09999999999999999
+    },
+    "h7_metrics": {
+      "mean_on_time_ratio": 1.0,
+      "mean_throughput": 76.6,
+      "mean_p95_latency_ms": 102.306
+    },
+    "runs": [
+      {
+        "seed": 101,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16796536796536796,
+        "throughput": 12.933333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1922.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 101,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 75.6,
+        "p95_latency_ms": 102.43,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.1796157059314954,
+        "throughput": 14.333333333333334,
+        "p95_latency_ms": 65.0,
+        "rejected": 1964.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 102,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 76.3,
+        "p95_latency_ms": 102.148,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_1_baseline",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_2_burst",
+        "on_time_ratio": 0.16438923395445135,
+        "throughput": 13.233333333333333,
+        "p95_latency_ms": 65.0,
+        "rejected": 2018.0,
+        "throttled_while_spare_ratio": 0.1,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      },
+      {
+        "seed": 103,
+        "scenario": "scenario_over_declaration",
+        "on_time_ratio": 1.0,
+        "throughput": 77.9,
+        "p95_latency_ms": 102.34,
+        "rejected": 0.0,
+        "throttled_while_spare_ratio": 0.03333333333333333,
+        "effective_params": {
+          "ewma_alpha": 0.3,
+          "headroom_h": 0.2,
+          "throttle_step": 1.25,
+          "rho_low": 0.9,
+          "rho_high": 1.0
+        }
+      }
+    ]
+  }
+]

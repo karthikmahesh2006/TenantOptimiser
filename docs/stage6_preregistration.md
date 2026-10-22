@@ -12,11 +12,12 @@
 
 Under ADR-009, this preregistration document is committed, tagged, and its commit hash recorded **prior** to running any confirmatory benchmark experiments on hardware. All hypotheses, effect sizes, statistical tests, ablations, seed splits, and failure criteria are frozen herein.
 
-### 1.1 Disjoint Seed Allocation
+### 1.1 Disjoint Seed Allocation & Baseline Seed Reuse Disclosure
 - **Coarse Calibration Seeds (Simulation Only)**: Seeds `101`, `102`, `103`.
   - Restricted strictly to the 5 CPU/mode tunables (`saha_ewma_alpha`, `saha_headroom_h`, `saha_throttle_step`, `saha_rho_low`, `saha_rho_high`).
 - **Confirmatory Benchmark Seeds (Live Hardware on EC2)**: Seeds `42`, `43`, `44`, `45`, `46` ($n = 5$ repeats per policy per scenario).
   - Strictly disjoint from calibration seeds. Never inspected or simulated during tuning.
+  - **Seed Reuse Disclosure & Implications**: Seeds `42`–`46` are the identical workload arrival seeds used in the frozen v1.0 benchmark evaluations for FCFS, Proportional, DRF, and Adaptive. Evaluating SAHA on seeds `42`–`46` ensures a strict, controlled paired direct replication against the exact same burst timings and contention patterns observed in Stages 1–5. This implies that the benchmark measures comparative parity on the established workload suite, but does not claim out-of-distribution generalized workload invariance (which would require a distinct holdout split).
 
 ### 1.2 Metric Accounting & Inflation Guard (Part 2 Condition A)
 To prevent metric inflation via selective request shedding:
@@ -55,7 +56,7 @@ The orchestrator samples `memory.events` at every epoch ($1\text{ Hz}$) and coll
 | Hypothesis | Description | Target Metric | Baseline Comparison | Effect-Size Threshold | Statistical Test | Failure Definition |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **H5** | Mitigate Saturation Collapse | `on_time_ratio` (over Total Offered Load) | Adaptive baseline in Scenario 1 ($7.1\%$) | $\text{SAHA} \ge 85.0\%$ ($\ge +75.0\text{ pp}$ over Adaptive) | 1-tailed Welch's $t$-test ($\alpha = 0.05$) across $n=5$ repeats | $\text{SAHA} < 80.0\%$ OR $p \ge 0.05$ vs Adaptive |
-| **H6** | Zero Honest-Load OOM Kills | `oom_kills` under honest load | DRF baseline in Scenario 3 ($4/5 = 80\%$ runs terminated) | Exactly $0$ OOM kills across all $n=5$ runs ($0.0\%$ rate) | Fisher's Exact Test ($\alpha = 0.05$) comparing $0/5$ vs $4/5$ | Any container terminated by OOM under honest load ($\text{oom\_kills} > 0$) |
+| **H6** | Zero Honest-Load OOM Kills | `oom_kills` under honest load | Contemporaneous live DRF in Scenario 3 | Exactly $0$ OOM kills across all $n=5$ runs ($0.0\%$ rate) | Fisher's Exact Test ($\alpha = 0.05$) vs live DRF OOM rate | Any container terminated by OOM under honest load ($\text{oom\_kills} > 0$) |
 | **H7** | Preserve Over-Declaration Win | Honest Tenant C `on_time_ratio` & Throughput | Static Proportional in Scenario Over-Decl | $\text{SAHA} \ge \text{Proportional} + 15.0\text{ pp}$, within $5\text{ pp}$ of Adaptive | 1-tailed paired $t$-test ($\alpha = 0.05$) | Tenant C on-time ratio $< \text{Proportional} + 5.0\text{ pp}$ |
 | **H8** | Rapid Host Capacity Contraction | CPU Convergence Epochs on Capacity Cut | Adaptive baseline in Scenario 3 ($\ge 3$ epochs) | Convergence in $\le 1$ epoch; zero capacity over-allocation | Wilcoxon signed-rank test ($\alpha = 0.05$) | Convergence $> 2$ epochs OR any epoch violating $\sum x_i \le C_{\text{cpu}}$ |
 
@@ -103,3 +104,27 @@ In adherence to scientific integrity:
    - No post-hoc parameter adjustments, threshold retuning, or seed shopping will be performed.
    - A dedicated diagnostic analysis will be conducted to isolate the mathematical or operational root cause of the failure.
    - The failure will be preserved in the platform archive as an established empirical limitation of the SAHA architecture.
+
+---
+
+## 7. Preregistration Amendments (Pre-Confirmatory Evaluation)
+
+### Amendment 1: Contemporaneous Live DRF Baseline for Hypothesis H6
+- **Context & Correction**: The preliminary preregistration draft cited DRF's historical "4/5 OOMs" from narrative observations in `docs/RESULTS.md` Section 1.1. However, the committed fallback bundle (`data/recorded_fallback.json`) contains only 108 runs across Scenarios 1, Over-Declaration, Honest-Declaration, and Demo; Scenario 3 raw runs were never exported to fallback. Evaluating H6 via Fisher's Exact Test against an unverified historical number is methodologically invalid.
+- **Enacted Protocol**: During the confirmatory evaluation session on the ephemeral EC2 instance, DRF will be executed live alongside SAHA on `scenario_3_capacity_cut` across all 5 confirmatory seeds (`42`–`46`). H6 will evaluate SAHA's honest OOM rate against this contemporaneous, live DRF baseline within the exact same hardware session and environment.
+
+### Amendment 2: Hard Auto-Termination Watchdog & Budget Cap
+- The ephemeral EC2 instance will be launched with AWS parameter `InstanceInitiatedShutdownBehavior='terminate'`.
+- A 30-minute hard shutdown watchdog will be initiated in instance user-data:
+  ```bash
+  sudo shutdown -h +30 "Stage 6 evaluation budget cap reached"
+  ```
+  When the watchdog fires, the OS shutdown triggers immediate instance and root EBS volume termination, strictly capping total spend to $\le 30\text{ minutes}$ ($< \$0.06$).
+
+### Amendment 3: Termination Security Group Verification & Artifact Capture
+- At instance termination, the launch automation will query AWS EC2 for all inbound permissions on the security group:
+  ```bash
+  aws ec2 describe-security-groups --group-ids <SG_ID> --query "SecurityGroups[0].IpPermissions"
+  ```
+  The exact inbound rule count ($0$) will be asserted and committed into the final `data/stage6_live_metadata.json` artifact prior to security group deletion.
+

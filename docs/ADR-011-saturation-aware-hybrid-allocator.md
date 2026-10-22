@@ -80,8 +80,8 @@ Memory is non-work-conserving. An abrupt memory contraction triggers unrecoverab
 3. **75% Declared-Demand Floor Rule (`saha_mem_declared_floor_frac = 0.75`):**
    - **Gated Condition:** Active strictly while $\sum_{i \in \text{active}} D_{i, \text{mem}} \le C_{\text{mem}}$.
    - **Rule:** $\text{floor}_i = \max(\text{floor}_{\text{p99}, i}, 0.75 \times D_{i, \text{mem}})$.
-   - **Design Rationale (Origin):** 75% represents the upper bound of typical multi-tenant microservice burst headroom, providing a 4:1 safety buffer over an idle 20–25% RSS baseline. It prevents sudden first-ever bursts from hitting tight cgroup limits before the 60s EWMA/sliding window can react.
-   - **Non-Tuned Structural Parameter:** 0.75 is a fixed design choice, NOT tuned via simulation. We commit to not altering it after confirmatory runs. The `no_declared_floor` ablation serves as the experimental control.
+   - **Design Rationale (Origin):** Under unconstrained pool capacity ($\sum_{i \in \text{active}} D_{i, \text{mem}} \le C_{\text{mem}}$), memory is contractually non-binding. Because memory is non-work-conserving and abrupt working-set expansion cannot wait for a 60-second sliding-window estimator without triggering kernel OOM kills, SAHA preserves a structural lower bound of 75% of the tenant's declared contract ($0.75 \times D_{i, \text{mem}}$), reserving up to 25% for platform headroom and inter-tenant multiplexing. This guarantees that any tenant whose working set remains within 75% of its declared SLA cannot be OOM-killed, regardless of how low its historical idle RSS was during cold start or quiet intervals.
+   - **Non-Tuned Structural Parameter:** 0.75 is a fixed design constant, NOT tuned via simulation or trace search. We commit to not altering it after confirmatory runs. The `no_declared_floor` ablation serves as the experimental control.
    - **Automatic Gating:** Under heavy memory contention (Scenarios 1 & 3), $\sum D_{\text{mem}} > C_{\text{mem}}$, causing the gate to flip OFF automatically and safely reverting floors to empirical p99 RSS.
 
 ### 2.3 Hard Invariants Beat Soft Limits & Deterministic Shedding

@@ -27,7 +27,8 @@ async def test_recorded_mode_banner(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/")
         assert resp.status_code == 200
-        assert "RECORDED real measurements from 2026-10-14, 3 runs on c7i-flex.large, not live" in resp.text
+        assert "RECORDED real measurements from" in resp.text
+        assert "runs on c7i-flex.large, not live" in resp.text
         assert "SIMULATED DATA" not in resp.text
 
 

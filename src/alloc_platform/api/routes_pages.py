@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from alloc_platform.api.auth import create_session_token, get_current_user, verify_password
 from alloc_platform.config import config
-from alloc_platform.db.models import PoolModel, Run, User
+from alloc_platform.db.models import Experiment, PoolModel, Run, User
 from alloc_platform.db.repo import get_all_experiments, get_all_tenants, get_run_metrics
 from alloc_platform.db.session import get_db
 

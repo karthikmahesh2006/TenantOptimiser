@@ -105,26 +105,47 @@ flowchart LR
 > When total demand exceeds capacity, logarithmic utility maximization $\max \sum w_i \ln(s_i)$ mathematically collapses to allocating capacity strictly in proportion to tenant weights. With weights $2.0, 1.5, 1.0$, the CPU-heavy tenant receives only $0.667\text{ cores}$ despite needing $0.80\text{ cores}$ to service $66.8\text{ req/s}$, locking it into permanent compute starvation. 
 > In contrast, DRF operates in multi-resource dominant share space. Because the memory worker requests $66.7\%$ of pool memory, DRF restricts its CPU allocation to match its dominant share, leaving $\approx 0.85\text{ cores}$ of CPU available for the CPU worker. This is a fundamental mathematical limitation of 1-D scalar log utility under saturation, which we document as a reported limitation."
 
-### Q2: What is the difference between MEASURED and CALCULATED metrics in your system?
+### Q2: Why did Adaptive suffer container OOM kills in honest load (scenario_honest_declaration)?
+> **Answer**:
+> "In `scenario_honest_declaration`, all three tenants declared identical demand ($0.5\text{c}, 512\text{ MB}$). Tenant B's true memory working set reached $409.6\text{ MB}$.
+> Adaptive's dynamic estimator observed low memory usage during initial startup ($36.6\text{ MB}$) and aggressively contracted Tenant B's memory limit to $256\text{--}320\text{ MB}$. When Tenant B's memory usage ramped up to $409.6\text{ MB}$, the memory safety floor (`safe_mem = usage + 64 MB`) raised the allocation to $473.6\text{--}491.2\text{ MB}$.
+> However, tracking live memory with only a narrow $64\text{ MB}$ margin left insufficient headroom for transient memory allocation bursts. In 2 out of 5 runs, container memory surged past this tight dynamic limit faster than the 1-second control loop could expand it, triggering Linux cgroup v2 kernel OOM kills (exit 137, a $40\%$ failure rate).
+> In contrast, static baselines (DRF, WP, FCFS) allocated the full declared $512\text{ MB}$ statically throughout the entire run, maintaining $\approx 102.4\text{ MB}$ of static buffer and achieving zero container terminations ($100\%$ on-time ratio). This reveals an algorithmic limitation: dynamic memory contraction under honest load creates fatal OOM hazards without providing any goodput benefit."
+
+### Q3: Why did DRF suffer severe OOM kills during the capacity cut (scenario_3_capacity_cut)?
+> **Answer**:
+> "DRF as classically formulated and implemented equalizes dominant multi-resource shares without awareness of container resident memory working sets.
+> When the host pool was cut from $1.50\text{c}, 3072\text{ MB}$ to $0.90\text{c}, 2048\text{ MB}$ at $t=15\text{s}$, DRF mechanically downscaled tenant memory limits in proportion to dominant shares. This forced the memory-intensive container's limit well below its active resident memory working set ($>512\text{ MB}$).
+> Because DRF has no memory safety floor, the Linux kernel cgroup v2 controller immediately terminated the container with an OOM kill (exit 137) in 4 out of 5 runs (an $80.0\%$ failure rate).
+> Adaptive, by contrast, enforces an explicit `memory_safety_mb = 64.0` floor above live RSS, preventing memory limits from being contracted below live working sets and achieving zero container deaths across all 5 repeats."
+
+### Q4: Why did Proportional (WP) beat Adaptive in the capacity cut (100% vs 45.1%)?
+> **Answer**:
+> "In `scenario_3_capacity_cut`, Proportional achieved **100.0% [100.0%, 100.0%]** on-time completion with zero container OOMs, whereas Adaptive achieved **45.1% [8.5%, 81.8%]**.
+> Proportional allocates resources strictly according to tenant declared weights ($2.0, 1.5, 1.0$), instantly scaling all tenants down proportionally at $t=15\text{s}$ while leaving adequate memory and CPU to sustain the offered load without triggering cgroup throttling or memory exhaustion.
+> Adaptive, conversely, was hindered by its stability damping mechanisms: rate-limiting contraction ($20\%$ per epoch) and dwell times retarded rapid quota restructuring following the abrupt host capacity contraction. This delayed reallocation caused prolonged CFS throttling across compute tenants, dropping Adaptive's goodput to $45.1\%$."
+
+### Q5: What does the "RECORDED" banner mean in the UI?
+> **Answer**:
+> "The RECORDED banner indicates that the data displayed in the UI was measured directly on real AWS EC2 hardware (`c7i-flex.large`, Amazon Linux 2023, cgroup v2) on the indicated date and instance type, but loaded from a cryptographically validated, persisted fallback bundle (`recorded_fallback.json`) rather than executed live in the current session.
+> The date range, instance type, and run count displayed in the banner are derived dynamically from the bundle metadata. This guarantees complete academic honesty: faculty can distinguish at a glance between a live test execution and pre-recorded real hardware measurements, ensuring the demonstration remains robust even if conference Wi-Fi or AWS SSM connectivity drops."
+
+### Q6: What is the difference between MEASURED and CALCULATED metrics in your system?
 > **Answer**:
 > "Every metric carries strict provenance metadata:
 > - **MEASURED**: Data sampled directly from the Linux kernel and network stack without mathematical modeling: cgroup v2 hardware counters (`cpu.stat` throttled usec, `memory.current` RSS), host load, and load generator request completion timestamps.
 > - **CALCULATED**: Metrics derived from allocator decisions relative to contractual definitions, such as Jain's fairness index and contractual demand satisfaction.
 > - **SIMULATED**: Tagged exclusively on offline fluid simulations. No simulated data is ever shown in live or recorded EC2 evaluation runs."
 
-### Q3: Why are the evaluation runs 30 seconds and 5 repeats rather than hours?
+### Q7: Why are the evaluation runs 30 seconds and 5 repeats rather than hours?
 > **Answer**:
 > "At closed-loop offered rates of $55\text{ to } 80\text{ req/s}$, each 30-second run processes over $2,400\text{ tasks}$, ensuring high statistical power per run. Running 5 randomized repeats ($N=5$) allows us to construct non-parametric 95% bootstrap confidence intervals while preventing thermal throttling drift on shared virtualized hardware."
 
-### Q4: What does the "RECORDED" banner mean?
-> **Answer**:
-> "RECORDED means the data was executed on real AWS EC2 `c7i-flex.large` hardware under identical cgroup v2 isolation, but persisted into a validated JSON fallback bundle. This ensures that even if local networking or AWS SSM port forwarding degrades during the presentation, the faculty can examine genuine hardware measurements rather than simulations."
-
-### Q5: Does the declared demand cap limit goodput for honest tenants?
+### Q8: Does the declared demand cap limit goodput for honest tenants?
 > **Answer**:
 > "Yes, and we have formally identified this as an architectural limitation. In `AdaptiveAllocator`, allocations and surplus redistribution are strictly capped at declared demand ($x_{i, r} \le D_{i, r}$). When Tenant C requires $0.66\text{ cores}$ but declared $0.50\text{ cores}$, the allocator cannot assign more than $0.50\text{c}$ during static epochs, even while $>0.38\text{ cores}$ of host CPU remain unallocated. This contract protects SLA boundaries but limits goodput when workloads under-declare."
 
-### Q6: Why were policy-induced OOM runs counted as failures rather than invalidated?
+### Q9: Why were policy-induced OOM runs counted as failures rather than invalidated?
 > **Answer**:
 > "Under rigorous scientific evaluation standards, only host environment faults (noisy neighbor CPU steal $>5.0\%$, non-tenant host CPU overshooting reservation $>0.50\text{c}$) invalidate a benchmark run. When an allocation policy terminates a tenant container via Linux OOM kill (exit 137)—such as DRF aggressively downscaling memory without safety buffers in Scenario 3 ($80\%$ OOM rate), or Adaptive encountering memory pressure during uniform honest contention ($40\%$ OOM rate)—this represents a fatal operational failure of the resource allocation algorithm.
 > Excluding OOM runs would artificially inflate an allocator's success rate (e.g. reporting a misleading single-run 100% for DRF when 4 out of 5 runs crashed). Counting OOM runs as $0\%$ on-time ratio keeps sample sizes ($n=5$) and confidence intervals statistically honest and transparently reveals stability risks."

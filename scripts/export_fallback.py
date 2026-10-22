@@ -27,7 +27,11 @@ def export_bundle(
         if experiment_id and experiment_id != "all":
             experiments = db.query(Experiment).filter(Experiment.id == experiment_id).all()
         else:
-            experiments = db.query(Experiment).filter(Experiment.status == "done").all()
+            experiments = (
+                db.query(Experiment)
+                .filter(Experiment.status.in_(["done", "completed"]))
+                .all()
+            )
         exp_list = []
         for e in experiments:
             runs = db.query(Run).filter(Run.experiment_id == e.id).all()
@@ -46,6 +50,10 @@ def export_bundle(
                     )
                     else "SIMULATED"
                 )
+                is_oom = bool(
+                    metrics.get("oom_kills", 0.0) > 0
+                    or (r.invalidation_reason and "OOM" in r.invalidation_reason)
+                )
                 run_list.append(
                     {
                         "id": r.id,
@@ -53,6 +61,7 @@ def export_bundle(
                         "repeat_index": r.repeat_index,
                         "status": r.status,
                         "is_valid": r.is_valid,
+                        "is_oom": is_oom,
                         "invalidation_reason": r.invalidation_reason,
                         "provenance": run_prov,
                         "metrics": metrics,
@@ -80,6 +89,7 @@ def export_bundle(
             "instance_type": "c7i-flex.large",
             "account_label": "aws-account-placeholder",
             "region": "ap-south-1",
+            "run_count": len(all_runs),
             "provenance": bundle_prov,
             "experiments": exp_list,
         }

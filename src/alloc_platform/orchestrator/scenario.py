@@ -45,8 +45,12 @@ class ScenarioSpec:
                 )
 
 
-def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
-    """Returns the standard benchmark scenarios 1-4 and demo scenario."""
+def get_predefined_scenarios(duration_s: int = 30) -> Dict[str, ScenarioSpec]:
+    """Returns the standard benchmark scenarios 1-4 and demo scenario.
+
+    When duration_s == 120, event times are rescaled to occur after the
+    cold-start sliding window (t >= W = 60s) to evaluate steady-state dynamics.
+    """
     # Scenario 1: Heterogeneous Workload Baseline (Pool budget <= 75% of host capacity)
     scen1_pool = Pool(
         capacity={"cpu": config.default_pool_cpu, "mem_mb": config.default_pool_mem_mb}
@@ -87,46 +91,68 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
     ]
 
-    # Scenario 2: Flash Crowd / Dynamic Burst
-    scen2_events = [
-        TimedEvent(
-            t_sec=10,
-            event_type="set_demand",
-            params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.8, "mem_mb": 512.0}},
-        ),
-        TimedEvent(
-            t_sec=20,
-            event_type="set_demand",
-            params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.2, "mem_mb": 512.0}},
-        ),
-    ]
-
-    # Scenario 3: Host Capacity Degradation / Cut (drops from 1.5 to 0.9 CPU cores)
-    scen3_events = [
-        TimedEvent(
-            t_sec=15,
-            event_type="set_capacity",
-            params={"capacity": {"cpu": 0.9, "mem_mb": 2048.0}},
-        ),
-    ]
-
-    # Scenario 4: Dynamic Tenant Arrival and Departure
-    scen4_events = [
-        TimedEvent(t_sec=10, event_type="tenant_arrive", params={"tenant_id": "tenant_mix"}),
-        TimedEvent(t_sec=20, event_type="tenant_leave", params={"tenant_id": "tenant_mix"}),
-    ]
+    if duration_s == 120:
+        # Rescaled event timings for 120s duration: post cold-start (t >= W = 60s)
+        scen2_events = [
+            TimedEvent(
+                t_sec=70,
+                event_type="set_demand",
+                params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.8, "mem_mb": 512.0}},
+            ),
+            TimedEvent(
+                t_sec=95,
+                event_type="set_demand",
+                params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.2, "mem_mb": 512.0}},
+            ),
+        ]
+        scen3_events = [
+            TimedEvent(
+                t_sec=70,
+                event_type="set_capacity",
+                params={"capacity": {"cpu": 0.9, "mem_mb": 2048.0}},
+            ),
+        ]
+        scen4_events = [
+            TimedEvent(t_sec=70, event_type="tenant_arrive", params={"tenant_id": "tenant_mix"}),
+            TimedEvent(t_sec=95, event_type="tenant_leave", params={"tenant_id": "tenant_mix"}),
+        ]
+    else:
+        # Standard event timings for 30s duration
+        scen2_events = [
+            TimedEvent(
+                t_sec=10,
+                event_type="set_demand",
+                params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.8, "mem_mb": 512.0}},
+            ),
+            TimedEvent(
+                t_sec=20,
+                event_type="set_demand",
+                params={"tenant_id": "tenant_cpu", "demand": {"cpu": 1.2, "mem_mb": 512.0}},
+            ),
+        ]
+        scen3_events = [
+            TimedEvent(
+                t_sec=15,
+                event_type="set_capacity",
+                params={"capacity": {"cpu": 0.9, "mem_mb": 2048.0}},
+            ),
+        ]
+        scen4_events = [
+            TimedEvent(t_sec=10, event_type="tenant_arrive", params={"tenant_id": "tenant_mix"}),
+            TimedEvent(t_sec=20, event_type="tenant_leave", params={"tenant_id": "tenant_mix"}),
+        ]
 
     return {
         "scenario_1_baseline": ScenarioSpec(
             name="Scenario 1: Heterogeneous Workload Baseline",
-            duration_s=30,
+            duration_s=duration_s,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
         ),
         "scenario_2_burst": ScenarioSpec(
             name="Scenario 2: Flash Crowd Workload Burst",
-            duration_s=30,
+            duration_s=duration_s,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
@@ -134,7 +160,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "scenario_3_capacity_cut": ScenarioSpec(
             name="Scenario 3: Physical Capacity Cut Under Contention",
-            duration_s=30,
+            duration_s=duration_s,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
@@ -142,7 +168,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "scenario_4_churn": ScenarioSpec(
             name="Scenario 4: Tenant Churn & Dynamic Arrival",
-            duration_s=30,
+            duration_s=duration_s,
             seed=42,
             pool=scen1_pool,
             tenants=scen1_tenants,
@@ -150,7 +176,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "demo_scenario": ScenarioSpec(
             name="Demo Scenario: Rapid Multi-Tenant Benchmark",
-            duration_s=30,
+            duration_s=duration_s,
             seed=1337,
             pool=scen1_pool,
             tenants=scen1_tenants,
@@ -158,7 +184,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "scenario_over_declaration": ScenarioSpec(
             name="Scenario Over-Declaration: Unused Quota Reclamation",
-            duration_s=30,
+            duration_s=duration_s,
             seed=42,
             pool=scen1_pool,
             tenants=[
@@ -199,7 +225,7 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
         ),
         "scenario_honest_declaration": ScenarioSpec(
             name="Scenario Honest-Declaration: Equal Demand Contention",
-            duration_s=30,
+            duration_s=duration_s,
             seed=42,
             pool=scen1_pool,
             tenants=[
@@ -239,3 +265,4 @@ def get_predefined_scenarios() -> Dict[str, ScenarioSpec]:
             ],
         ),
     }
+

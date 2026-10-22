@@ -67,6 +67,9 @@ class PlatformConfig(BaseModel):
     saha_cut_latch_epochs: int = 3
     saha_dhat_min_epsilon: float = 1e-4
     saha_cap_cut_tol: float = 1e-3
+    saha_mem_declared_floor_frac: float = 0.75
+    saha_deadband_eps: float = 1e-7
+
 
 
     # Enforcement & Docker

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from alloc_platform.allocator.adaptive import AdaptiveAllocator, AdaptiveParams
 from alloc_platform.allocator.drf import allocate_drf
 from alloc_platform.allocator.fcfs import allocate_fcfs
-from alloc_platform.allocator.saha import SahaAllocator
+from alloc_platform.allocator.saha import SahaAllocator, SahaParams
 from alloc_platform.allocator.metrics import (
     allocated_util,
     churn,
@@ -234,7 +234,11 @@ async def _execute_single_run(
     if "no_surplus" in pol:
         adaptive_params.use_surplus = False
     adaptive_inst = AdaptiveAllocator(params=adaptive_params)
-    saha_inst = SahaAllocator()
+    saha_params = SahaParams()
+    if "no_declared_floor" in pol:
+        saha_params.use_declared_floor = False
+        saha_params.mem_declared_floor_frac = 0.0
+    saha_inst = SahaAllocator(params=saha_params)
 
     plans_history: List[Plan] = []
     usages_history: List[List[Dict[str, float]]] = []
@@ -496,7 +500,7 @@ async def _execute_single_run(
                 plan = adaptive_inst.allocate(
                     curr_pool, active_tenants, obs, prev_plan, now=step_time
                 )
-            elif pol == "saha":
+            elif pol.startswith("saha"):
                 plan = saha_inst.allocate(
                     curr_pool, active_tenants, obs, prev_plan, now=step_time
                 )
@@ -578,6 +582,15 @@ async def _execute_single_run(
                 req_samples = await asyncio.wait_for(load_task, timeout=5.0)
             except Exception:
                 req_samples = []
+
+        # In live cgroup path, mark requests as rejected for tenants whose memory floor was shed
+        if req_samples and plans_history:
+            for s in req_samples:
+                epoch_idx = min(len(plans_history) - 1, max(0, int(s.scheduled_time_s)))
+                plan_at_t = plans_history[epoch_idx]
+                if any(ug[0] == s.tenant_id and ug[1] == "mem_mb" for ug in plan_at_t.unmet_guarantees):
+                    s.status = "rejected"
+
 
         # If no live samples returned (e.g. simulation or endpoints unreachable), simulate requests deterministically
         if not req_samples and trace:

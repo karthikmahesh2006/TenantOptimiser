@@ -20,8 +20,9 @@ def main():
                     parts = line.split("=", 1)
                     state[parts[0].strip()] = parts[1].strip()
 
-    iid = os.getenv("IID", state.get("IID", "i-011b23accbf304c75"))
+    iid = os.getenv("IID", state.get("IID", "i-placeholder"))
     region = os.getenv("REGION", state.get("REGION", "ap-south-1"))
+
     port = "8000"
 
     print("==================================================================")

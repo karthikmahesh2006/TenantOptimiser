@@ -63,6 +63,11 @@ class SahaParams:
     cut_latch_epochs: int = config.saha_cut_latch_epochs
     dhat_min_epsilon: float = config.saha_dhat_min_epsilon
     cap_cut_tol: float = config.saha_cap_cut_tol
+    mem_declared_floor_frac: float = config.saha_mem_declared_floor_frac
+    deadband_eps: float = config.saha_deadband_eps
+    use_declared_floor: bool = True
+
+
 
 
 class SahaAllocator:
@@ -248,8 +253,8 @@ class SahaAllocator:
                         if slack <= 1e-9:
                             break
 
-                # If slack still remains and tenants can absorb up to declared demand
-                if slack > 1e-9:
+                # If slack still remains and tenants can absorb up to declared demand (CPU only; memory is reclaimed to floor)
+                if slack > 1e-9 and r == "cpu":
                     unmet_decl = {
                         t.id: max(0.0, float(t.demand.get(r, 0.0)) - raw[t.id][r])
                         for t in active_tenants
@@ -271,11 +276,23 @@ class SahaAllocator:
         obs: Optional[Dict[str, TenantObs]],
         prev_alloc: Optional[Dict[str, Dict[str, float]]],
         now: float,
+        pool: Optional[Pool] = None,
     ) -> Dict[str, float]:
-        """Step 5: Memory floor calculation with sliding window RSS and cold-start guard."""
+        """Step 5: Memory floor calculation with sliding window RSS, cold-start guard, and declared-demand floor rule (Condition 7c)."""
         floors: Dict[str, float] = {}
 
-        for t in active_tenants:
+        # Item 7c: Gated by sum of declared memory over active tenants <= current C_mem
+        act = [t for t in active_tenants if t.active]
+        c_mem = pool.capacity.get("mem_mb", 3072.0) if pool else 3072.0
+        tot_decl_mem = sum(float(t.demand.get("mem_mb", 0.0)) for t in act)
+        is_declared_floor_active = (
+            self.params.use_declared_floor
+            and (self.params.mem_declared_floor_frac > 0.0)
+            and (tot_decl_mem <= c_mem + 1e-9)
+        )
+
+        for t in act:
+
             t_obs = obs.get(t.id) if obs else None
             curr_rss = float(t_obs.usage.get("mem_mb", 64.0)) if t_obs else 64.0
 
@@ -312,11 +329,16 @@ class SahaAllocator:
             else:
                 floor_val = calc_floor
 
-            # Never exceed declared demand
+            # Item 7c: Declared memory floor rule: max(p99 floor, frac * D) while gate is active
             decl_mem = float(t.demand.get("mem_mb", 512.0))
+            if is_declared_floor_active:
+                floor_val = max(floor_val, self.params.mem_declared_floor_frac * decl_mem)
+
+            # Never exceed declared demand
             floors[t.id] = round(min(decl_mem, floor_val), 4)
 
         return floors
+
 
     def apply_memory_floors_and_infeasibility(
         self,
@@ -411,8 +433,12 @@ class SahaAllocator:
                     for r in pool.capacity:
                         prev_v = prev_alloc[t.id].get(r, final_alloc[t.id][r])
                         rel_change = abs(final_alloc[t.id][r] - prev_v) / max(1e-6, prev_v)
-                        if rel_change < self.params.deadband:
+                        if rel_change < (self.params.deadband - self.params.deadband_eps):
                             final_alloc[t.id][r] = prev_v
+
+
+
+
 
         # 3. Hard Invariants Beat Soft Limits (Condition 3c):
         # sum_i x[i][r] <= C[r] for every resource and memory floors are hard.
@@ -525,7 +551,7 @@ class SahaAllocator:
         self.last_raw_alloc = {t.id: dict(raw[t.id]) for t in active_tenants}
 
         # Step 5: Memory Floors
-        floor_mem = self.compute_memory_floors(active_tenants, obs, prev_alloc, now)
+        floor_mem = self.compute_memory_floors(active_tenants, obs, prev_alloc, now, pool=pool)
 
         # Infeasibility & Floor Application (Step 5 & 7)
         alloc_with_floors, unmet_g, notes = self.apply_memory_floors_and_infeasibility(

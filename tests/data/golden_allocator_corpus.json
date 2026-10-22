@@ -395,5 +395,824 @@
       },
       "unmet_guarantees": []
     }
+  },
+  "adaptive_multi_epoch_sequence": {
+    "pool": {
+      "capacity": {
+        "cpu": 1.5,
+        "mem_mb": 3072.0
+      }
+    },
+    "tenants": [
+      {
+        "id": "t_a",
+        "name": "TA",
+        "weight": 2.0,
+        "priority": 1,
+        "arrival_seq": 1,
+        "active": true,
+        "demand": {
+          "cpu": 1.0,
+          "mem_mb": 512.0
+        },
+        "minimum": {
+          "cpu": 0.2,
+          "mem_mb": 128.0
+        }
+      },
+      {
+        "id": "t_b",
+        "name": "TB",
+        "weight": 1.0,
+        "priority": 1,
+        "arrival_seq": 2,
+        "active": true,
+        "demand": {
+          "cpu": 0.8,
+          "mem_mb": 1024.0
+        },
+        "minimum": {
+          "cpu": 0.1,
+          "mem_mb": 256.0
+        }
+      }
+    ],
+    "sequence": [
+      {
+        "epoch": 0,
+        "now": 1.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.48,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 1,
+        "now": 2.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.48,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 2,
+        "now": 3.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.48,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 3,
+        "now": 4.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.48,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 4,
+        "now": 5.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.48,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 5,
+        "now": 6.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.95,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.678,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 6,
+        "now": 7.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.95,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.8166,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 7,
+        "now": 8.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.95,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.91362,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 8,
+        "now": 9.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.95,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.91362,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 9,
+        "now": 10.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.95,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 1.0,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 10,
+        "now": 11.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.95,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 1.0,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 11,
+        "now": 12.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.887646,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.36,
+            "mem_mb": 480.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 12,
+        "now": 13.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.75,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.25
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.765352,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.734648,
+            "mem_mb": 752.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 13,
+        "now": 14.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.75,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.25
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.679747,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.8,
+            "mem_mb": 752.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 14,
+        "now": 15.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.75,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.25
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.679747,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.8,
+            "mem_mb": 752.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 15,
+        "now": 16.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.75,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.25
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.577876,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.8,
+            "mem_mb": 752.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 16,
+        "now": 17.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.75,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.25
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.577876,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.8,
+            "mem_mb": 752.0
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 17,
+        "now": 18.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.577876,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.67447,
+            "mem_mb": 601.6
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 18,
+        "now": 19.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.513571,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.580129,
+            "mem_mb": 601.6
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 19,
+        "now": 20.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.513571,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.580129,
+            "mem_mb": 601.6
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 20,
+        "now": 21.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.513571,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.467863,
+            "mem_mb": 601.6
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 21,
+        "now": 22.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.491515,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.467863,
+            "mem_mb": 601.6
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 22,
+        "now": 23.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.491515,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.467863,
+            "mem_mb": 601.6
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 23,
+        "now": 24.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.491515,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.396997,
+            "mem_mb": 481.28
+          }
+        },
+        "unmet_guarantees": []
+      },
+      {
+        "epoch": 24,
+        "now": 25.0,
+        "obs": {
+          "t_a": {
+            "usage": {
+              "cpu": 0.4,
+              "mem_mb": 200.0
+            },
+            "throttle_ratio": 0.0
+          },
+          "t_b": {
+            "usage": {
+              "cpu": 0.3,
+              "mem_mb": 400.0
+            },
+            "throttle_ratio": 0.0
+          }
+        },
+        "alloc": {
+          "t_a": {
+            "cpu": 0.48395,
+            "mem_mb": 264.0
+          },
+          "t_b": {
+            "cpu": 0.396997,
+            "mem_mb": 481.28
+          }
+        },
+        "unmet_guarantees": []
+      }
+    ]
   }
 }

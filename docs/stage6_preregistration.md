@@ -334,5 +334,10 @@ Only two hypotheses from Section 3 are evaluated in this run:
 - **AMI Dependency Assurance**:
   - Base AMI lacks `git` by default; user-data executes `dnf install -y git` if absent before attempting repository clone.
 
+#### 7. Tag and Pinned Execution State
+- **Tag**: Tag `stage6-preflight-ready` designates the preflight-verified commit on `origin/stage6-saha`. Tag `stage6-detached-ready` is preserved intact without force-moving.
+- **Execution Hash**: Ephemeral instances checkout the full 40-character commit hash tagged by `stage6-preflight-ready`.
+- **Non-Behavioral Telemetry Change**: The change from `artifacts/stage6/` to `backups/stage6/<commit12>/` is strictly non-behavioral telemetry routing.
+
 
 

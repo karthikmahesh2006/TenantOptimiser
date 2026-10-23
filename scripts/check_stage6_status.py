@@ -4,7 +4,7 @@
 Runnable from any machine with AWS credentials (read-only):
 - Queries EC2 instance state and lifecycle
 - Asserts Security Group inbound rule count (must be 0)
-- Fetches and displays progress.json and done.json from S3
+- Fetches and displays progress.json and done.json from S3 under backups/stage6/<commit12>/
 - Counts completed <run_id>.json files in S3
 - Displays pinned commit hash and execution log availability
 """
@@ -39,7 +39,7 @@ def run_aws_json(cmd: List[str]) -> Optional[Any]:
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(res.stdout) if res.stdout.strip() else None
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -84,9 +84,10 @@ def list_s3_run_files(bucket: str, s3_prefix: str, region: str) -> List[str]:
 def check_status(
     instance_id: Optional[str] = None,
     bucket: Optional[str] = None,
-    s3_prefix: str = "artifacts/stage6",
+    s3_prefix: Optional[str] = None,
     region: Optional[str] = None,
     sg_id: Optional[str] = None,
+    commit_hash: Optional[str] = None,
 ) -> None:
     state = load_state()
     region = region or state.get("REGION", "ap-south-1")
@@ -98,10 +99,10 @@ def check_status(
     print("============================================================")
     print(f"Region:     {region}")
     print(f"S3 Bucket:  {bucket}")
-    print(f"S3 Prefix:  {s3_prefix}")
 
     # 1. Instance Details
     inst_sg_id = sg_id
+    inst_commit = commit_hash
     if instance_id:
         print(f"\n--- [1] EC2 Instance: {instance_id} ---")
         inst_info = run_aws_json([
@@ -118,6 +119,8 @@ def check_status(
             sgs = [g.get("GroupId") for g in inst_info.get("SecurityGroups", [])]
             if sgs:
                 inst_sg_id = sgs[0]
+            if not inst_commit and "Commit" in tags:
+                inst_commit = tags["Commit"]
 
             print(f"  State:       {inst_state}")
             print(f"  Launch Time: {launch_time}")
@@ -128,7 +131,20 @@ def check_status(
     else:
         print("\n--- [1] EC2 Instance: Not specified (querying S3 only) ---")
 
-    # 2. Security Group 0-Inbound Check
+    # 2. Determine exact S3 prefix
+    if s3_prefix:
+        prefix = s3_prefix.rstrip("/")
+    else:
+        base_prefix = "backups/stage6"
+        if inst_commit:
+            commit12 = inst_commit[:12]
+            prefix = f"{base_prefix}/{commit12}"
+        else:
+            prefix = base_prefix
+
+    print(f"S3 Prefix:  {prefix}")
+
+    # 3. Security Group Zero-Inbound Check
     if inst_sg_id:
         print(f"\n--- [2] Security Group Zero-Inbound Audit: {inst_sg_id} ---")
         sg_info = run_aws_json([
@@ -147,8 +163,7 @@ def check_status(
         else:
             print(f"  Could not query security group {inst_sg_id}.")
 
-    # 3. S3 Progress and Run Files
-    prefix = s3_prefix.rstrip("/")
+    # 4. S3 Progress and Run Files
     print(f"\n--- [3] S3 Execution Artifacts (s3://{bucket}/{prefix}/) ---")
 
     run_files = list_s3_run_files(bucket, prefix, region)
@@ -168,7 +183,7 @@ def check_status(
         print(f"    Commit:      {progress.get('commit_hash')}")
         print(f"    Timestamp:   {progress.get('timestamp')}")
     else:
-        print("  progress.json not found in S3 (run may be starting or initializing).")
+        print("  progress.json not found in S3 (run may be starting, initializing, or prefix not yet written).")
 
     done = fetch_s3_json(bucket, f"{prefix}/done.json", region)
     if done:
@@ -189,8 +204,9 @@ def check_status(
 def main():
     parser = argparse.ArgumentParser(description="Check Stage 6 Detached Execution Status")
     parser.add_argument("--instance-id", type=str, help="EC2 Instance ID to check.")
+    parser.add_argument("--commit-hash", type=str, help="Commit hash to inspect under backups/stage6/<commit12>/.")
     parser.add_argument("--bucket", type=str, help="S3 bucket name.")
-    parser.add_argument("--s3-prefix", type=str, default="artifacts/stage6", help="S3 artifact prefix.")
+    parser.add_argument("--s3-prefix", type=str, default=None, help="S3 artifact prefix override.")
     parser.add_argument("--region", type=str, help="AWS region.")
     parser.add_argument("--sg-id", type=str, help="Security Group ID to check.")
     args = parser.parse_args()
@@ -201,6 +217,7 @@ def main():
         s3_prefix=args.s3_prefix,
         region=args.region,
         sg_id=args.sg_id,
+        commit_hash=args.commit_hash,
     )
 
 

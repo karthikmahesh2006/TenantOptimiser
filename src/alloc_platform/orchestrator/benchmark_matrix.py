@@ -79,8 +79,8 @@ def build_plan_tuples(
 
     if preset == "smoke3":
         # Exactly 3 runs for detached smoke test:
-        # scenario_1_baseline x {saha, adaptive, drf} x seed 42 (3 runs)
-        seeds_list = seeds if seeds is not None else [42]
+        # scenario_1_baseline x {saha, adaptive, drf} x seed 9001 (throwaway non-confirmatory seed)
+        seeds_list = seeds if seeds is not None else [9001]
         plan = []
         for pol in ["saha", "adaptive", "drf"]:
             for s in seeds_list:
@@ -148,7 +148,7 @@ def write_and_upload_done_file(
     reason: Optional[str] = None,
     done_file: str = "/tmp/stage6_done.json",
     s3_bucket: Optional[str] = None,
-    s3_prefix: str = "artifacts/stage6",
+    s3_prefix: str = "backups/stage6",
     region: str = "ap-south-1",
     commit_hash: Optional[str] = None,
     preset: Optional[str] = None,
@@ -197,7 +197,7 @@ def main():
     parser.add_argument("--single-scenario", type=str, help="Single scenario execution.")
     parser.add_argument("--single-seed", type=int, help="Single seed execution.")
     parser.add_argument("--s3-bucket", type=str, help="S3 bucket for incremental run exports.")
-    parser.add_argument("--s3-prefix", type=str, default="artifacts/stage6", help="S3 prefix (default: artifacts/stage6).")
+    parser.add_argument("--s3-prefix", type=str, default="backups/stage6", help="S3 prefix (default: backups/stage6).")
     parser.add_argument("--overhead", type=float, default=5.0, help="Measured per-run overhead in seconds for watchdog (default: 5.0s).")
     parser.add_argument("--commit-hash", type=str, default=None, help="Pinned git commit hash running on instance.")
     parser.add_argument("--done-file", type=str, default="/tmp/stage6_done.json", help="Local done.json path.")

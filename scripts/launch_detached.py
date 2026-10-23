@@ -3,14 +3,16 @@
 
 Features:
 1. Strict 0-inbound security group assertion (Amendment 3).
-2. Generates self-contained bash user-data containing:
+2. Preflight IAM simulation: asserts s3:PutObject on target S3 prefix before RunInstances.
+3. Key scheme: backups/stage6/<commit12>/<run_id>.json (never overwrites).
+4. Generates self-contained bash user-data containing:
    - Hard auto-termination watchdog (runs x (duration + overhead) + 25m buffer).
-   - Public git clone & pinned commit checkout.
+   - Git presence assurance (dnf install -y git if missing) & public git clone at pinned commit.
    - Live environment setup (docker-socket-proxy, alloc-worker, .venv).
    - benchmark_matrix execution logging to /var/log/stage6.log.
    - Guaranteed cleanup trap exporting artifacts, logs, done.json and calling shutdown -h now.
-3. Launches EC2 instance with InstanceInitiatedShutdownBehavior=terminate.
-4. Prints instance id, region, S3 prefix, and EXITS immediately (no session held open).
+5. Launches EC2 instance with InstanceInitiatedShutdownBehavior=terminate.
+6. Prints instance id, region, S3 prefix, and EXITS immediately (no session held open).
 """
 
 import argparse
@@ -39,6 +41,16 @@ def load_state() -> Dict[str, str]:
                     k, v = line.split("=", 1)
                     state[k.strip()] = v.strip()
     return state
+
+
+def get_aws_account_id(region: str = "ap-south-1") -> str:
+    """Retrieves current AWS account ID via STS."""
+    try:
+        cmd = ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text", "--region", region]
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return res.stdout.strip()
+    except Exception:
+        return "481374029754"
 
 
 def verify_security_group_zero_inbound(sg_id: str, region: str, dry_run: bool = False):
@@ -72,13 +84,54 @@ def verify_security_group_zero_inbound(sg_id: str, region: str, dry_run: bool = 
     return count
 
 
+def verify_iam_put_object_permission(
+    role_arn: str,
+    target_s3_arn: str,
+    region: str = "ap-south-1",
+    dry_run: bool = False,
+) -> str:
+    """Simulates principal policy to verify s3:PutObject permission before RunInstances."""
+    cmd = [
+        "aws",
+        "iam",
+        "simulate-principal-policy",
+        "--policy-source-arn",
+        role_arn,
+        "--action-names",
+        "s3:PutObject",
+        "--resource-arns",
+        target_s3_arn,
+        "--region",
+        region,
+        "--output",
+        "json",
+    ]
+    if dry_run:
+        print("[DRY-RUN] Simulating IAM Principal Policy for S3 PutObject:")
+        print(f"  Role ARN:     {role_arn}")
+        print(f"  Target ARN:   {target_s3_arn}")
+        print("  EvalDecision: allowed (dry-run)")
+        return "allowed"
+
+    res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    data = json.loads(res.stdout)
+    results = data.get("EvaluationResults", [])
+    if not results or results[0].get("EvalDecision") != "allowed":
+        decision = results[0].get("EvalDecision") if results else "no-results"
+        raise PermissionError(
+            f"PREFLIGHT IAM CHECK FAILED: Role {role_arn} is NOT authorized for s3:PutObject on {target_s3_arn} (EvalDecision: {decision}). "
+            "Aborting launch before RunInstances to avoid execution without persistence."
+        )
+    return "allowed"
+
+
 def build_detached_user_data(
     watchdog_minutes: int,
     pinned_commit: str,
     bucket: str,
     region: str,
     preset: str,
-    s3_prefix: str = "artifacts/stage6",
+    s3_prefix: str = "backups/stage6",
     overhead: float = 5.0,
 ) -> str:
     """Builds self-contained user-data script for detached autonomous execution."""
@@ -97,6 +150,7 @@ echo "=== Stage 6 Detached Execution Started: $(date -u +"%Y-%m-%dT%H:%M:%SZ") =
 echo "Target Commit: {pinned_commit}"
 echo "Preset:        {preset}"
 echo "Bucket:        {bucket}"
+echo "S3 Dest:       {s3_dest}"
 echo "Region:        {region}"
 echo "Watchdog:      {watchdog_minutes} minutes"
 
@@ -153,7 +207,13 @@ DONE_EOF
 }}
 trap cleanup_and_shutdown EXIT
 
-# 3. Public git checkout at pinned commit
+# 3. Ensure git is available (install via dnf if absent on base AMI)
+if ! command -v git >/dev/null 2>&1; then
+    echo "Installing git via dnf..."
+    dnf install -y git
+fi
+
+# 4. Public git checkout at pinned commit
 REPO_DIR="/opt/alloc/repo"
 rm -rf "$REPO_DIR"
 mkdir -p "$REPO_DIR"
@@ -170,7 +230,7 @@ if [ "$CHECKED_OUT_HASH" != "{pinned_commit}" ]; then
     exit 1
 fi
 
-# 4. Environment & Worker provisioning (reusing /opt/alloc configuration)
+# 5. Environment & Worker provisioning (reusing /opt/alloc configuration)
 mkdir -p /etc/alloc /var/lib/alloc
 if [ ! -f /etc/alloc/env ]; then
     cat > /etc/alloc/env <<ENV_EOF
@@ -227,7 +287,7 @@ if ! id -u alloc >/dev/null 2>&1; then
 fi
 chown -R alloc:alloc /var/lib/alloc "$REPO_DIR"
 
-# 5. Execute benchmark_matrix under live mode
+# 6. Execute benchmark_matrix under live mode
 echo "Running benchmark_matrix with preset {preset}..."
 export ALLOC_MODE=live
 export DOCKER_HOST=tcp://127.0.0.1:2375
@@ -275,7 +335,7 @@ def launch_detached(
     iam_profile: Optional[str] = None,
     bucket: Optional[str] = None,
     region: Optional[str] = None,
-    s3_prefix: str = "artifacts/stage6",
+    s3_prefix: Optional[str] = None,
     instance_type: str = "c7i-flex.large",
 ) -> Tuple[str, str, str]:
     """Verifies security group, builds user-data, launches EC2 instance, and returns immediately."""
@@ -283,9 +343,17 @@ def launch_detached(
     region = region or state.get("REGION", "ap-south-1")
     sg_id = sg_id or state.get("SG_ID")
     iam_profile = iam_profile or state.get("PROFILE_NAME", "alloc-platform-ec2")
+    role_name = state.get("ROLE_NAME", "alloc-platform-ec2")
     bucket = bucket or state.get("BUCKET", "alloc-platform-481374029754-ap-south-1")
     subnet_id = subnet_id or state.get("SUBNET_ID")
     image_id = image_id or state.get("AMI_ID")
+
+    # Scheme: backups/stage6/<commit12>
+    commit12 = pinned_commit[:12]
+    if s3_prefix is None:
+        effective_s3_prefix = f"backups/stage6/{commit12}"
+    else:
+        effective_s3_prefix = s3_prefix if commit12 in s3_prefix else f"{s3_prefix.rstrip('/')}/{commit12}"
 
     # Hard Validation: In non-dry-run mode, fail immediately on missing or placeholder parameters
     if not dry_run:
@@ -302,7 +370,14 @@ def launch_detached(
                     "Non-dry-run mode requires valid AWS resource IDs and will NOT fall back to defaults or placeholders."
                 )
 
+    # 1. Zero-Inbound Verification
     pre_rules = verify_security_group_zero_inbound(sg_id or "sg-dryrun", region, dry_run=dry_run)
+
+    # 2. Preflight IAM simulation check
+    account_id = get_aws_account_id(region) if not dry_run else "481374029754"
+    role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
+    preflight_target_arn = f"arn:aws:s3:::{bucket}/{effective_s3_prefix}/preflight_check.json"
+    verify_iam_put_object_permission(role_arn, preflight_target_arn, region, dry_run=dry_run)
 
     plan = build_plan_tuples(preset=preset)
     duration = 120
@@ -316,7 +391,7 @@ def launch_detached(
         bucket=bucket or "bucket-dryrun",
         region=region,
         preset=preset,
-        s3_prefix=s3_prefix,
+        s3_prefix=effective_s3_prefix,
         overhead=overhead,
     )
 
@@ -343,19 +418,19 @@ def launch_detached(
         "Region": region,
     }
 
-    s3_keys = compute_s3_keys(bucket or "bucket-dryrun", s3_prefix, preset)
+    s3_keys = compute_s3_keys(bucket or "bucket-dryrun", effective_s3_prefix, preset)
 
     if dry_run:
         print("============================================================")
         print(f" STAGE 6 DETACHED LAUNCHER (DRY_RUN=True, PRESET={preset})")
         print("============================================================")
-        print(f"Pinned Commit Hash: {pinned_commit}")
+        print(f"Pinned Commit Hash: {pinned_commit} (prefix commit12: {commit12})")
         print(f"Region:             {region}")
         print(f"Instance Type:      {instance_type}")
         print(f"Security Group:     {sg_id} (inbound rules: {pre_rules})")
-        print(f"IAM Profile:        {iam_profile}")
+        print(f"IAM Profile:        {iam_profile} (Role: {role_arn})")
         print(f"S3 Artifact Bucket: {bucket}")
-        print(f"S3 Artifact Prefix: {s3_prefix}")
+        print(f"S3 Artifact Prefix: {effective_s3_prefix}")
         print(f"Planned Runs:       {len(plan)} runs")
         print(f"{explanation}")
         print("\n--- [DRY-RUN] Full User-Data Script Text ---")
@@ -366,7 +441,7 @@ def launch_detached(
         for k in s3_keys:
             print(f"  s3://{bucket}/{k}")
         print("\n[DRY-RUN] Completed successfully with zero AWS infrastructure mutations.")
-        return "i-dryrun-placeholder-detached", region, f"s3://{bucket}/{s3_prefix}"
+        return "i-dryrun-placeholder-detached", region, f"s3://{bucket}/{effective_s3_prefix}"
 
     # LIVE LAUNCH
     cmd = [
@@ -400,7 +475,7 @@ def launch_detached(
     print(f"Calling EC2 run-instances for detached execution ({preset}, {len(plan)} runs)...")
     res = subprocess.run(cmd, capture_output=True, text=True, check=True)
     instance_id = res.stdout.strip()
-    s3_uri = f"s3://{bucket}/{s3_prefix}"
+    s3_uri = f"s3://{bucket}/{effective_s3_prefix}"
     print(f"\n============================================================")
     print(f" DETACHED INSTANCE LAUNCHED SUCCESSFULLY")
     print(f"============================================================")
@@ -428,7 +503,7 @@ def main():
     parser.add_argument("--iam-profile", type=str, help="IAM profile override.")
     parser.add_argument("--bucket", type=str, help="S3 bucket override.")
     parser.add_argument("--region", type=str, help="AWS region override.")
-    parser.add_argument("--s3-prefix", type=str, default="artifacts/stage6", help="S3 prefix (default: artifacts/stage6).")
+    parser.add_argument("--s3-prefix", type=str, default=None, help="S3 prefix (default: backups/stage6/<commit12>).")
     parser.add_argument("--instance-type", type=str, default="c7i-flex.large", help="Instance type (default: c7i-flex.large).")
     args = parser.parse_args()
 
